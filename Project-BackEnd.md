@@ -126,11 +126,10 @@ import (
     "database/sql"
     "net/http"
 
-    "tracking-backend/internal/config"
     "tracking-backend/internal/db"
     "tracking-backend/internal/models"
     "tracking-backend/internal/utils"
-
+    "tracking-backend/internal/config"
     "github.com/gin-gonic/gin"
 )
 
@@ -160,12 +159,15 @@ func Register(c *gin.Context) {
         return
     }
 
-    // Insert user
-    var userID int
-    err = db.DB.QueryRow(
-        "INSERT INTO users (phone, password_hash) VALUES ($1, $2) RETURNING id",
+    // Insert user and return all fields including created_at
+    var user models.User
+    err = db.DB.QueryRow(`
+        INSERT INTO users (phone, password_hash) 
+        VALUES ($1, $2) 
+        RETURNING id, phone, created_at`,
         req.Phone, hashedPassword,
-    ).Scan(&userID)
+    ).Scan(&user.ID, &user.Phone, &user.CreatedAt)
+    
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating user"})
         return
@@ -173,7 +175,7 @@ func Register(c *gin.Context) {
 
     c.JSON(http.StatusCreated, gin.H{
         "message": "User registered successfully",
-        "user_id": userID,
+        "user": user,
     })
 }
 
@@ -184,12 +186,15 @@ func Login(c *gin.Context) {
         return
     }
 
-    // Get user from database
+    // Get user from database - ADD created_at to SELECT
     var user models.User
-    err := db.DB.QueryRow(
-        "SELECT id, phone, password_hash FROM users WHERE phone=$1",
+    err := db.DB.QueryRow(`
+        SELECT id, phone, password_hash, created_at 
+        FROM users 
+        WHERE phone = $1`,
         req.Phone,
-    ).Scan(&user.ID, &user.Phone, &user.PasswordHash)
+    ).Scan(&user.ID, &user.Phone, &user.PasswordHash, &user.CreatedAt)
+    
     if err != nil {
         if err == sql.ErrNoRows {
             c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
@@ -205,7 +210,7 @@ func Login(c *gin.Context) {
         return
     }
 
-    // Generate JWT token - FIXED to use config.AppConfig
+    // Generate JWT token
     token, err := utils.GenerateJWT(
         user.ID,
         config.AppConfig.JWTSecret,
@@ -216,6 +221,7 @@ func Login(c *gin.Context) {
         return
     }
 
+    // Return user without password hash
     c.JSON(http.StatusOK, models.LoginResponse{
         Token: token,
         User:  user,
@@ -249,8 +255,8 @@ func ActivateDevice(c *gin.Context) {
 
     // Activate device for user
     _, err = db.DB.Exec(
-        "INSERT INTO devices (serial, user_id) VALUES ($1, $2) ON CONFLICT (serial) DO UPDATE SET user_id=$2",
-        req.Serial, userID,
+        "INSERT INTO devices (serial, user_id, device_secret) VALUES ($1, $2, $3) ON CONFLICT (serial) DO UPDATE SET user_id=$2, device_secret=$3",
+        req.Serial, userID, req.Secret,
     )
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Error activating device"})
@@ -280,7 +286,7 @@ func GetUserDevices(c *gin.Context) {
     }
     defer rows.Close()
 
-    var devices []models.Device
+    devices := []models.Device{}
     for rows.Next() {
         var device models.Device
         if err := rows.Scan(&device.Serial, &device.ActivatedAt); err != nil {
@@ -336,7 +342,7 @@ import (
     "encoding/json"
     "log"
     "time"
-
+    "strings"
     "tracking-backend/internal/db"
     "tracking-backend/internal/models"
     "tracking-backend/internal/services"
@@ -349,6 +355,7 @@ var mqttClient mqtt.Client
 
 type LocationMessageWithCSQ struct {
     Device     string  `json:"device"`
+    Secret     string  `json:"secret"`
     Lat        float64 `json:"lat"`
     Lng        float64 `json:"lng"`
     Speed      int     `json:"speed"`
@@ -386,17 +393,34 @@ func StartSubscriber(pg *sql.DB, rdb *redis.Client, broker, user, pass, topic st
     log.Println("Connected to MQTT broker:", broker)
 
     if token := mqttClient.Subscribe(topic, 1, func(c mqtt.Client, msg mqtt.Message) {
-        handleMessage(pg, rdb, msg.Payload())
+        handleMessage(pg, rdb, msg.Topic(), msg.Payload())
     }); token.Wait() && token.Error() != nil {
         log.Fatal("MQTT subscribe error:", token.Error())
     }
     log.Println("Subscribed to topic:", topic)
 }
 
-func handleMessage(pg *sql.DB, rdb *redis.Client, payload []byte) {
+func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) {
     var loc LocationMessageWithCSQ
     if err := json.Unmarshal(payload, &loc); err != nil {
         log.Println("JSON parse error:", err, "payload:", string(payload))
+        return
+    }
+    parts := strings.Split(topic, "/")
+
+    if len(parts) != 3 {
+        log.Println("Invalid topic:", topic)
+        return
+    }
+
+    topicDevice := parts[1]
+
+    if topicDevice != loc.Device {
+        log.Printf(
+            "Topic device mismatch. Topic=%s Payload=%s",
+            topicDevice,
+            loc.Device,
+        )
         return
     }
 
@@ -404,20 +428,26 @@ func handleMessage(pg *sql.DB, rdb *redis.Client, payload []byte) {
         loc.Device, loc.Lat, loc.Lng, loc.Speed, loc.Satellites, loc.CSQ)
 
     // ADDED: Mark device online
-    services.SetDeviceOnline(loc.Device)
+    
 
-    // Check if device exists in database
-    var exists bool
-    err := pg.QueryRow("SELECT EXISTS(SELECT 1 FROM devices WHERE serial=$1)", loc.Device).Scan(&exists)
+    var storedSecret string
+
+    err := pg.QueryRow(
+        "SELECT device_secret FROM devices WHERE serial=$1",
+        loc.Device,
+    ).Scan(&storedSecret)
+
     if err != nil {
-        log.Println("Error checking device existence:", err)
+        log.Printf("Unknown device: %s", loc.Device)
         return
     }
 
-    if !exists {
-        log.Printf("Device %s not activated, skipping storage", loc.Device)
+    if storedSecret != loc.Secret {
+        log.Printf("Invalid secret for device: %s", loc.Device)
         return
     }
+
+    services.SetDeviceOnline(loc.Device)
 
     // Store to PostgreSQL - Updated with battery field
     _, err = pg.Exec(`
@@ -512,6 +542,7 @@ func StopSubscriber() {
         log.Println("Disconnected from MQTT broker")
     }
 }
+
 ```
 
 ## 6.  `internal/api/devices.go`
@@ -995,6 +1026,7 @@ type LoginRequest struct {
 
 type ActivateDeviceRequest struct {
     Serial string `json:"serial" binding:"required"`
+    Secret string `json:"secret" binding:"required"`
 }
 
 type LoginResponse struct {

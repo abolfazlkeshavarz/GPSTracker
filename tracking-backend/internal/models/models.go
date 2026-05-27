@@ -65,6 +65,7 @@ type LoginRequest struct {
 
 type ActivateDeviceRequest struct {
     Serial string `json:"serial" binding:"required"`
+    Secret string `json:"secret" binding:"required"`
 }
 
 type LoginResponse struct {

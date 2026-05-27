@@ -133,8 +133,8 @@ func ActivateDevice(c *gin.Context) {
 
     // Activate device for user
     _, err = db.DB.Exec(
-        "INSERT INTO devices (serial, user_id) VALUES ($1, $2) ON CONFLICT (serial) DO UPDATE SET user_id=$2",
-        req.Serial, userID,
+        "INSERT INTO devices (serial, user_id, device_secret) VALUES ($1, $2, $3) ON CONFLICT (serial) DO UPDATE SET user_id=$2, device_secret=$3",
+        req.Serial, userID, req.Secret,
     )
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Error activating device"})

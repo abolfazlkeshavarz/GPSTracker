@@ -5,7 +5,7 @@ import (
     "encoding/json"
     "log"
     "time"
-
+    "strings"
     "tracking-backend/internal/db"
     "tracking-backend/internal/models"
     "tracking-backend/internal/services"
@@ -18,6 +18,7 @@ var mqttClient mqtt.Client
 
 type LocationMessageWithCSQ struct {
     Device     string  `json:"device"`
+    Secret     string  `json:"secret"`
     Lat        float64 `json:"lat"`
     Lng        float64 `json:"lng"`
     Speed      int     `json:"speed"`
@@ -55,17 +56,34 @@ func StartSubscriber(pg *sql.DB, rdb *redis.Client, broker, user, pass, topic st
     log.Println("Connected to MQTT broker:", broker)
 
     if token := mqttClient.Subscribe(topic, 1, func(c mqtt.Client, msg mqtt.Message) {
-        handleMessage(pg, rdb, msg.Payload())
+        handleMessage(pg, rdb, msg.Topic(), msg.Payload())
     }); token.Wait() && token.Error() != nil {
         log.Fatal("MQTT subscribe error:", token.Error())
     }
     log.Println("Subscribed to topic:", topic)
 }
 
-func handleMessage(pg *sql.DB, rdb *redis.Client, payload []byte) {
+func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) {
     var loc LocationMessageWithCSQ
     if err := json.Unmarshal(payload, &loc); err != nil {
         log.Println("JSON parse error:", err, "payload:", string(payload))
+        return
+    }
+    parts := strings.Split(topic, "/")
+
+    if len(parts) != 3 {
+        log.Println("Invalid topic:", topic)
+        return
+    }
+
+    topicDevice := parts[1]
+
+    if topicDevice != loc.Device {
+        log.Printf(
+            "Topic device mismatch. Topic=%s Payload=%s",
+            topicDevice,
+            loc.Device,
+        )
         return
     }
 
@@ -73,20 +91,26 @@ func handleMessage(pg *sql.DB, rdb *redis.Client, payload []byte) {
         loc.Device, loc.Lat, loc.Lng, loc.Speed, loc.Satellites, loc.CSQ)
 
     // ADDED: Mark device online
-    services.SetDeviceOnline(loc.Device)
+    
 
-    // Check if device exists in database
-    var exists bool
-    err := pg.QueryRow("SELECT EXISTS(SELECT 1 FROM devices WHERE serial=$1)", loc.Device).Scan(&exists)
+    var storedSecret string
+
+    err := pg.QueryRow(
+        "SELECT device_secret FROM devices WHERE serial=$1",
+        loc.Device,
+    ).Scan(&storedSecret)
+
     if err != nil {
-        log.Println("Error checking device existence:", err)
+        log.Printf("Unknown device: %s", loc.Device)
         return
     }
 
-    if !exists {
-        log.Printf("Device %s not activated, skipping storage", loc.Device)
+    if storedSecret != loc.Secret {
+        log.Printf("Invalid secret for device: %s", loc.Device)
         return
     }
+
+    services.SetDeviceOnline(loc.Device)
 
     // Store to PostgreSQL - Updated with battery field
     _, err = pg.Exec(`

@@ -1,0 +1,26 @@
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== ENV =====
+.env
+
+# ===== BACKEND =====
+tracking-backend/bin/
+*.exe
+*.log
+
+# Go build cache
+*.out
+
+# ===== FRONTEND =====
+tracking-frontend/node_modules/
+tracking-frontend/dist/
+tracking-frontend/.vite/
+
+# ===== IDE =====
+.vscode/
+.idea/
+
+# ===== Logs =====
+logs/

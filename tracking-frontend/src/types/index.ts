@@ -1,6 +1,7 @@
 export interface User {
   id: number;
   phone: string;
+  created_at: string;
 }
 
 export interface Device {
@@ -16,10 +17,15 @@ export interface LocationData {
   speed: number;
   sat: number;
   csq: number;
-  battery: number;
-  operator: string;
-  ignition: boolean;
-  timestamp: number;
+  battery?: number;
+  operator?: string;
+  ignition?: boolean;
+  timestamp?: number;
+}
+
+export interface ActivateDeviceRequest {
+  serial: string;
+  secret: string;
 }
 
 export interface SignalData {
@@ -28,4 +34,10 @@ export interface SignalData {
   gprs_bars: number;
   satellites: number;
   csq: number;
+  updated_at: string;
+}
+
+export interface DeviceStatus {
+  device: string;
+  online: boolean;
 }

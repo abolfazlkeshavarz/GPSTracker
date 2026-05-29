@@ -187,6 +187,7 @@ export default function DeviceDetails() {
         </div>
 
         {/* Signal Card */}
+        {/* Signal Card */}
         <div className="group relative overflow-hidden bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
           <div className="absolute top-0 right-0 w-32 h-32 bg-green-500 opacity-10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
           <div className={`relative p-6 ${isRTL ? 'text-right' : ''}`}>
@@ -205,15 +206,17 @@ export default function DeviceDetails() {
             </p>
             <div className={`mt-2 flex items-center ${isRTL ? 'flex-row-reverse' : ''}`}>
               <Wifi className={`w-4 h-4 text-gray-400 ${isRTL ? 'ml-1' : 'mr-1'}`} />
-              <div className={`flex ${isRTL ? 'space-x-reverse' : 'space-x-1'}`}>
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className={`w-2 h-4 rounded-sm ${i < signalStrength.bars ? 'bg-green-500' : 'bg-gray-200'}`}></div>
-                ))}
+              {/* Signal bars with fixed spacing - WORKS IN BOTH LTR AND RTL */}
+              <div className="flex">
+                <div className={`w-2 h-4 rounded-sm ${signalStrength.bars >= 1 ? 'bg-green-500' : 'bg-gray-200'}`} style={{ marginRight: '4px' }}></div>
+                <div className={`w-2 h-4 rounded-sm ${signalStrength.bars >= 2 ? 'bg-green-500' : 'bg-gray-200'}`} style={{ marginRight: '4px' }}></div>
+                <div className={`w-2 h-4 rounded-sm ${signalStrength.bars >= 3 ? 'bg-green-500' : 'bg-gray-200'}`} style={{ marginRight: '4px' }}></div>
+                <div className={`w-2 h-4 rounded-sm ${signalStrength.bars >= 4 ? 'bg-green-500' : 'bg-gray-200'}`} style={{ marginRight: '4px' }}></div>
+                <div className={`w-2 h-4 rounded-sm ${signalStrength.bars >= 5 ? 'bg-green-500' : 'bg-gray-200'}`} style={{ marginRight: '4px' }}></div>
               </div>
             </div>
           </div>
         </div>
-
         {/* Battery Card */}
         <div className="group relative overflow-hidden bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
           <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500 opacity-10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>

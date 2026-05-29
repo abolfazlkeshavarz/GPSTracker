@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 import { useLanguage } from "../../context/LanguageContext";
 import LanguageSwitcher from "../LanguageSwitcher";
-import { LayoutDashboard, PlusCircle, LogOut } from "lucide-react";
+import { LayoutDashboard, PlusCircle, LogOut, Shield } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -43,6 +43,9 @@ export default function DashboardLayout({ children }: Props) {
               <div className="text-sm">
                 <p className="font-medium">{user?.phone}</p>
                 <p className="text-gray-500">{t("online")}</p>
+                {user?.role === "admin" && (
+                  <p className="text-xs text-purple-600 font-semibold mt-1">Admin</p>
+                )}
               </div>
             </div>
           </div>
@@ -65,6 +68,17 @@ export default function DashboardLayout({ children }: Props) {
               <PlusCircle className="w-5 h-5" />
               <span>{t("activate.device")}</span>
             </Link>
+
+            {/* Admin Panel - only visible to admin users */}
+            {user?.role === "admin" && (
+              <Link
+                to="/admin"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 text-gray-700 hover:text-purple-600"
+              >
+                <Shield className="w-5 h-5" />
+                <span>Admin Panel</span>
+              </Link>
+            )}
           </nav>
 
           {/* bottom */}

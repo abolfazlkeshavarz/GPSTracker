@@ -37,14 +37,14 @@ func Register(c *gin.Context) {
         return
     }
 
-    // Insert user and return all fields including created_at
+    // Insert user and return all fields including created_at and role
     var user models.User
     err = db.DB.QueryRow(`
-        INSERT INTO users (phone, password_hash) 
-        VALUES ($1, $2) 
-        RETURNING id, phone, created_at`,
+        INSERT INTO users (phone, password_hash, role) 
+        VALUES ($1, $2, 'user') 
+        RETURNING id, phone, role, created_at`,
         req.Phone, hashedPassword,
-    ).Scan(&user.ID, &user.Phone, &user.CreatedAt)
+    ).Scan(&user.ID, &user.Phone, &user.Role, &user.CreatedAt)
     
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating user"})
@@ -64,14 +64,14 @@ func Login(c *gin.Context) {
         return
     }
 
-    // Get user from database - ADD created_at to SELECT
+    // Get user from database - INCLUDING role
     var user models.User
     err := db.DB.QueryRow(`
-        SELECT id, phone, password_hash, created_at 
+        SELECT id, phone, password_hash, role, created_at 
         FROM users 
         WHERE phone = $1`,
         req.Phone,
-    ).Scan(&user.ID, &user.Phone, &user.PasswordHash, &user.CreatedAt)
+    ).Scan(&user.ID, &user.Phone, &user.PasswordHash, &user.Role, &user.CreatedAt)
     
     if err != nil {
         if err == sql.ErrNoRows {
@@ -119,28 +119,59 @@ func ActivateDevice(c *gin.Context) {
         return
     }
 
-    // Check if device is already activated by another user
+    // Check if device exists and is not activated
     var existingUserID sql.NullInt64
-    err := db.DB.QueryRow("SELECT user_id FROM devices WHERE serial=$1", req.Serial).Scan(&existingUserID)
-    if err != nil && err != sql.ErrNoRows {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+    var deviceSecret string
+    var isActive bool
+    
+    err := db.DB.QueryRow(`
+        SELECT user_id, device_secret, is_active 
+        FROM devices 
+        WHERE serial = $1`, 
+        req.Serial,
+    ).Scan(&existingUserID, &deviceSecret, &isActive)
+    
+    if err != nil {
+        if err == sql.ErrNoRows {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Device not found. Please contact admin."})
+        } else {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+        }
         return
     }
-    if existingUserID.Valid && int(existingUserID.Int64) != userID.(int) {
-        c.JSON(http.StatusConflict, gin.H{"error": "Device already activated by another user"})
+    
+    // Verify secret
+    if deviceSecret != req.Secret {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid device secret"})
         return
     }
-
+    
+    // Check if already activated
+    if existingUserID.Valid {
+        c.JSON(http.StatusConflict, gin.H{"error": "Device already activated"})
+        return
+    }
+    
     // Activate device for user
-    _, err = db.DB.Exec(
-        "INSERT INTO devices (serial, user_id, device_secret) VALUES ($1, $2, $3) ON CONFLICT (serial) DO UPDATE SET user_id=$2, device_secret=$3",
-        req.Serial, userID, req.Secret,
+    _, err = db.DB.Exec(`
+        UPDATE devices 
+        SET user_id = $1, is_active = true, activated_at = NOW()
+        WHERE serial = $2 AND is_active = false`,
+        userID, req.Serial,
     )
+    
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Error activating device"})
         return
     }
-
+    
+    // Log activation
+    _, _ = db.DB.Exec(`
+        INSERT INTO audit_logs (user_id, action, entity_type, entity_id, ip_address)
+        VALUES ($1, $2, $3, $4, $5)`,
+        userID, "ACTIVATE_DEVICE", "device", req.Serial, c.ClientIP(),
+    )
+    
     c.JSON(http.StatusOK, gin.H{"message": "Device activated successfully"})
 }
 
@@ -167,12 +198,24 @@ func GetUserDevices(c *gin.Context) {
     devices := []models.Device{}
     for rows.Next() {
         var device models.Device
-        if err := rows.Scan(&device.Serial, &device.ActivatedAt); err != nil {
+        var activatedAt sql.NullTime
+        
+        if err := rows.Scan(&device.Serial, &activatedAt); err != nil {
             continue
         }
-        device.UserID = userID.(int)
+        
+        // Convert to pointer
+        uid := userID.(int)
+        device.UserID = &uid  // Fixed: use pointer
+        
+        if activatedAt.Valid {
+            device.ActivatedAt = &activatedAt.Time  // Note: ActivatedAt should also be a pointer in the model
+        }
+        
         devices = append(devices, device)
     }
 
     c.JSON(http.StatusOK, gin.H{"devices": devices})
 }
+
+

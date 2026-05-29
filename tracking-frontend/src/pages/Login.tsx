@@ -1,4 +1,3 @@
-// src/pages/Login.tsx
 import { useState } from "react";
 import { loginUser } from "../api/auth";
 import { useNavigate, Link } from "react-router-dom";
@@ -9,20 +8,36 @@ import { LogIn, Phone, Lock, ArrowRight, MapPin } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
-  const auth = useAuthStore();
+  const { login } = useAuthStore(); // Get login function
   const { t, isRTL } = useLanguage();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = async () => {
+    if (!phone || !password) {
+      setError("Please enter phone and password");
+      return;
+    }
+    
     try {
       setLoading(true);
+      setError("");
       const data = await loginUser(phone, password);
-      auth.login(data.token, data.user);
-      navigate("/dashboard");
+      console.log("Login response:", data); // Debug log
+      
+      // Make sure we have token and user
+      if (data.token && data.user) {
+        login(data.token, data.user);
+        console.log("Navigating to dashboard...");
+        navigate("/dashboard");
+      } else {
+        setError("Invalid response from server");
+      }
     } catch (err: any) {
-      alert(err.response?.data?.error || t('login.failed'));
+      console.error("Login error:", err);
+      setError(err.response?.data?.error || t('login.failed'));
     } finally {
       setLoading(false);
     }
@@ -45,6 +60,12 @@ export default function Login() {
         </div>
         
         <div className="p-8">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
+          
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">{t('phone.number')}</label>
@@ -52,7 +73,7 @@ export default function Login() {
                 <Phone className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400`} />
                 <input
                   type="text"
-                  placeholder="09123456789"
+                  placeholder="admin or 09123456789"
                   className={`w-full ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}

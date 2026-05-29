@@ -4,9 +4,13 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import DeviceDetails from "./pages/DeviceDetails";
 import ActivateDevice from "./pages/ActivateDevice";
+import AdminPanel from "./pages/AdminPanel";
+import { useAuthStore } from "./store/authStore";
 
 function App() {
-  const token = localStorage.getItem("token");
+  const { token, user } = useAuthStore();
+  const isAuthenticated = !!token;
+  const isAdmin = user?.role === "admin";
 
   return (
     <Routes>
@@ -15,17 +19,22 @@ function App() {
       
       <Route
         path="/dashboard"
-        element={token ? <Dashboard /> : <Navigate to="/login" />}
+        element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />}
       />
       
       <Route
         path="/device/:serial"
-        element={token ? <DeviceDetails /> : <Navigate to="/login" />}
+        element={isAuthenticated ? <DeviceDetails /> : <Navigate to="/login" />}
       />
       
       <Route
         path="/activate"
-        element={token ? <ActivateDevice /> : <Navigate to="/login" />}
+        element={isAuthenticated ? <ActivateDevice /> : <Navigate to="/login" />}
+      />
+      
+      <Route
+        path="/admin"
+        element={isAuthenticated && isAdmin ? <AdminPanel /> : <Navigate to="/dashboard" />}
       />
       
       <Route path="*" element={<Navigate to="/dashboard" />} />

@@ -3,6 +3,8 @@ import { create } from "zustand";
 interface User {
   id: number;
   phone: string;
+  role: string;
+  created_at: string;
 }
 
 interface AuthState {
@@ -14,9 +16,20 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   token: localStorage.getItem("token"),
-  user: JSON.parse(localStorage.getItem("user") || "null"),
+  user: (() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr && userStr !== "null") {
+      try {
+        return JSON.parse(userStr);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  })(),
   
   login: (token, user) => {
+    console.log("Logging in user:", user); // Debug log
     localStorage.setItem("token", token);
     localStorage.setItem("user", JSON.stringify(user));
     set({ token, user });

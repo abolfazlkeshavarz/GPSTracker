@@ -2,19 +2,25 @@ package models
 
 import (
     "time"
+    "encoding/json"
 )
 
 type User struct {
     ID           int       `json:"id"`
     Phone        string    `json:"phone"`
     PasswordHash string    `json:"-"`
+    Role         string    `json:"role"`
     CreatedAt    time.Time `json:"created_at"`
 }
 
 type Device struct {
-    Serial      string    `json:"serial"`
-    UserID      int       `json:"user_id"`
-    ActivatedAt time.Time `json:"activated_at"`
+    Serial      string     `json:"serial"`
+    DeviceSecret string    `json:"device_secret,omitempty"`
+    UserID      *int       `json:"user_id,omitempty"`      // Changed to pointer
+    IsActive    bool       `json:"is_active"`
+    ActivatedAt *time.Time `json:"activated_at,omitempty"` // Changed to pointer
+    CreatedBy   int        `json:"created_by"`
+    CreatedAt   time.Time  `json:"created_at"`
 }
 
 type LocationMessage struct {
@@ -63,12 +69,39 @@ type LoginRequest struct {
     Password string `json:"password" binding:"required"`
 }
 
+
+type LoginResponse struct {
+    Token string `json:"token"`
+    User  User   `json:"user"`
+}
+
+
+
+
+
 type ActivateDeviceRequest struct {
     Serial string `json:"serial" binding:"required"`
     Secret string `json:"secret" binding:"required"`
 }
 
-type LoginResponse struct {
-    Token string `json:"token"`
-    User  User   `json:"user"`
+type AdminCreateDeviceRequest struct {
+    Serial       string `json:"serial" binding:"required"`
+    DeviceSecret string `json:"device_secret" binding:"required"`
+}
+
+type AdminUpdateDeviceRequest struct {
+    DeviceSecret string `json:"device_secret,omitempty"`
+    UserID       *int   `json:"user_id,omitempty"`
+    IsActive     *bool  `json:"is_active,omitempty"`
+}
+
+type AuditLog struct {
+    ID        int             `json:"id"`
+    UserID    *int            `json:"user_id,omitempty"`
+    Action    string          `json:"action"`
+    EntityType string         `json:"entity_type"`
+    EntityID  string          `json:"entity_id"`
+    Details   json.RawMessage `json:"details,omitempty"`
+    IPAddress string          `json:"ip_address"`
+    CreatedAt time.Time       `json:"created_at"`
 }

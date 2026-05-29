@@ -50,5 +50,27 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
         authorized.GET("/ws/device/:serial", HandleDeviceWebSocket)
     }
 
+
+    
+    admin := router.Group("/api/admin")
+    admin.Use(AuthMiddleware(cfg.JWTSecret))
+    admin.Use(AdminMiddleware())
+    {
+        // Device management
+        admin.POST("/devices", AdminCreateDevice)
+        admin.GET("/devices", AdminGetDevices)
+        admin.PUT("/devices/:serial", AdminUpdateDevice)
+        admin.DELETE("/devices/:serial", AdminDeleteDevice)
+        
+        // User management
+        admin.GET("/users", AdminGetUsers)
+        
+        // Audit logs
+        admin.GET("/logs", AdminGetLogs)
+        
+        // Statistics
+        admin.GET("/stats", AdminGetStats)
+    }
+
     return router
 }

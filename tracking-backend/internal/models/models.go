@@ -21,6 +21,12 @@ type Device struct {
     ActivatedAt *time.Time `json:"activated_at,omitempty"` // Changed to pointer
     CreatedBy   int        `json:"created_by"`
     CreatedAt   time.Time  `json:"created_at"`
+    LastModifiedAt time.Time  `json:"last_modified_at"`  // NEW FIELD
+
+}
+
+type AssignDeviceRequest struct {
+    UserID int `json:"user_id" binding:"required"`
 }
 
 type LocationMessage struct {

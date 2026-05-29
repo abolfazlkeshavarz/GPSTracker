@@ -12,9 +12,11 @@
   "dependencies": {
     "@mapbox/mapbox-gl-rtl-text": "^0.4.0",
     "@neshan-maps-platform/leaflet": "^1.0.8",
+    "@types/lodash": "^4.17.24",
     "@types/mapbox-gl": "^3.4.1",
     "axios": "^1.16.1",
     "leaflet": "^1.9.4",
+    "lodash": "^4.18.1",
     "lucide-react": "^1.17.0",
     "mapbox-gl": "^3.24.0",
     "maplibre-gl": "^5.24.0",

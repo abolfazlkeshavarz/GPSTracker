@@ -52,7 +52,7 @@ func Load() *Config {
         DBPort:     getEnv("DB_PORT", "5432"),
         DBUser:     getEnv("DB_USER", "postgres"),
         DBPassword: getEnv("DB_PASSWORD", "admin"),
-        DBName:     getEnv("DB_NAME", "GPSTracker"),
+        DBName:     getEnv("DB_NAME", "tracking_db"),
 
         // Redis
         RedisHost:     getEnv("REDIS_HOST", "localhost"),

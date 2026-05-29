@@ -20,6 +20,8 @@ const translations = {
     'logout': 'Logout',
     'dashboard': 'Dashboard',
     'activate.device': 'Activate Device',
+    'register.success': 'Registration was successful!',
+
     
     // Dashboard
     'dashboard.overview': 'Dashboard Overview',
@@ -145,6 +147,8 @@ const translations = {
     'logout': 'خروج',
     'dashboard': 'داشبورد',
     'activate.device': 'فعال‌سازی دستگاه',
+    'register.success': 'ثبت نام موفقیت آمیز بود',
+
     
     // Dashboard
     'dashboard.overview': 'نمای کلی داشبورد',

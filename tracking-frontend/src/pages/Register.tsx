@@ -3,12 +3,14 @@ import { useState } from "react";
 import { registerUser } from "../api/auth";
 import { useNavigate, Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
+import { useAuthStore } from "../store/authStore";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { UserPlus, Phone, Lock, ArrowRight } from "lucide-react";
 
 export default function Register() {
   const navigate = useNavigate();
   const { t, isRTL } = useLanguage();
+  const auth = useAuthStore();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,9 +18,19 @@ export default function Register() {
   const handleRegister = async () => {
     try {
       setLoading(true);
-      await registerUser(phone, password);
-      alert(t('activation.success'));
-      navigate("/activate");
+      const data = await registerUser(phone, password);
+      
+      // Store the token and user data from registration response
+      // Assuming the API returns { token, user } similar to login
+      if (data.token && data.user) {
+        auth.login(data.token, data.user);
+        alert(t('register.success'));
+        navigate("/dashboard");
+      } else {
+        // If registration doesn't auto-login, just show success and go to login
+        alert(t('register.success'));
+        navigate("/login");
+      }
     } catch (err: any) {
       alert(err.response?.data?.error || t('register.failed'));
     } finally {

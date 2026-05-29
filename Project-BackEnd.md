@@ -1450,6 +1450,7 @@ CREATE DATABASE tracking_db;
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     phone VARCHAR(20) UNIQUE NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE;
     password_hash TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -1542,5 +1543,3 @@ psql -U postgres -d tracking_db -f scripts/init.sql
 # Run the server
 go run cmd/server/main.go
 ```
-
-The backend is now production-ready. -->

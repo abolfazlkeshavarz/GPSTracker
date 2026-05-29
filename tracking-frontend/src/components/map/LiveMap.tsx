@@ -3,6 +3,11 @@ import maplibregl from "maplibre-gl";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
+maplibregl.setRTLTextPlugin(
+  "/rtl/mapbox-gl-rtl-text.js",
+  true // lazy load
+);
+
 interface Props {
   lat: number;
   lng: number;

@@ -1294,7 +1294,7 @@ npm run dev
 Docker for map tiles:
 ```bash
 docker run -it --rm -v C:/maps:/data -p 8081:8080 maptiler/tileserver-gl --file /data/iran-output.mbtiles
-docker run -it --rm -v C:/maps:/data -p 8081:80 klokantech/tileserver-gl
+docker run -it --rm -v C:/maps:/data -p 8081:80 klokantech/tileserver-gl -c /data/config.json
 
 ```
 

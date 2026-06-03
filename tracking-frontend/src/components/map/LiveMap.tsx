@@ -26,7 +26,7 @@ export default function LiveMap({ lat, lng, serial }: Props) {
       container: mapContainer.current,
 
       style:
-        "/maps/styles/osm-bright/style.json",
+        "https://maps.abolfazl.fun/styles/osm-bright/style.json",
 
       center: [lng, lat],
       zoom: 15,

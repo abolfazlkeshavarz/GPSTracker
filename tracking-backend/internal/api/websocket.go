@@ -33,6 +33,7 @@ var upgrader = websocket.Upgrader{
 			"http://diceandroll.ir":  true,
 			"https://abolfazl.fun":   true,
 			"https://diceandroll.ir": true,
+            "https://maps.abolfazl.fun": true,
 		}
 
 		// allow empty origin for mobile apps / Postman

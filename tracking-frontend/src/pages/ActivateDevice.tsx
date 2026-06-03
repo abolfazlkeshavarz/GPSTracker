@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { activateDevice } from "../api/devices";
-import DashboardLayout from "../components/layout/DashboardLayout";
+import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import { useLanguage } from "../context/LanguageContext";
 import { QrCode, CheckCircle, AlertCircle, Key, Shield, Cpu } from "lucide-react";
 
@@ -43,7 +43,7 @@ export default function ActivateDevice() {
   };
 
   return (
-    <DashboardLayout>
+    <ResponsiveLayout>
       <div className={`max-w-2xl mx-auto ${isRTL ? 'text-right' : ''}`}>
         <div className="mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
@@ -177,6 +177,6 @@ export default function ActivateDevice() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </ResponsiveLayout>
   );
 }

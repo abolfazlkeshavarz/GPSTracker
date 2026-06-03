@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import DashboardLayout from "../components/layout/DashboardLayout";
+import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import { useLanguage } from "../context/LanguageContext";
 import api from "../api/axios";
 import UserModal from "../components/admin/UserModal";
@@ -252,7 +252,7 @@ export default function AdminPanel() {
   }
 
   return (
-    <DashboardLayout>
+    <ResponsiveLayout>
       <div className={`max-w-7xl mx-auto ${isRTL ? "text-right" : ""}`}>
         {/* Header */}
         <div className="mb-8">
@@ -765,6 +765,6 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
-    </DashboardLayout>
+    </ResponsiveLayout>
   );
 }

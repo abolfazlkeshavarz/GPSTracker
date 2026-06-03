@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { getLatestLocation } from "../api/devices";
 import LiveMap from "../components/map/LiveMap";
 import { useWebSocket } from "../hooks/useWebSocket";
-import DashboardLayout from "../components/layout/DashboardLayout";
+import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import { useLanguage } from "../context/LanguageContext";
 import { 
   Gauge, 
@@ -81,20 +81,20 @@ export default function DeviceDetails() {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <ResponsiveLayout>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
             <p className="mt-4 text-gray-600">{t('loading')}</p>
           </div>
         </div>
-      </DashboardLayout>
+      </ResponsiveLayout>
     );
   }
 
   if (!location) {
     return (
-      <DashboardLayout>
+      <ResponsiveLayout>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -102,7 +102,7 @@ export default function DeviceDetails() {
             <p className="text-gray-500">{t('no.location.data')} {serial}</p>
           </div>
         </div>
-      </DashboardLayout>
+      </ResponsiveLayout>
     );
   }
 
@@ -111,7 +111,7 @@ export default function DeviceDetails() {
   const satelliteStatus = getSatelliteStatus(location.sat || location.satellites || 0);
 
   return (
-    <DashboardLayout>
+    <ResponsiveLayout>
       {/* Header */}
       <div className={`mb-8 ${isRTL ? 'text-right' : ''}`}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -330,6 +330,6 @@ export default function DeviceDetails() {
           <LiveMap lat={location.lat} lng={location.lng} serial={serial || ""} />
         </div>
       </div>
-    </DashboardLayout>
+    </ResponsiveLayout>
   );
 }

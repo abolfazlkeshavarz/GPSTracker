@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getDevices, getLatestLocation } from "../api/devices";
-import DashboardLayout from "../components/layout/DashboardLayout";
+import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import { useLanguage } from "../context/LanguageContext";
 import {
   MapPin,
@@ -110,19 +110,19 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <ResponsiveLayout>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
             <p className="mt-4 text-gray-600">{t("loading")}</p>
           </div>
         </div>
-      </DashboardLayout>
+      </ResponsiveLayout>
     );
   }
 
   return (
-    <DashboardLayout>
+    <ResponsiveLayout>
       {/* Header */}
       <div className={`mb-8 ${isRTL ? "text-right" : ""}`}>
         <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
@@ -276,6 +276,6 @@ export default function Dashboard() {
           {wsConnected ? t("live.updates.active") : t("reconnecting")}
         </span>
       </div>
-    </DashboardLayout>
+    </ResponsiveLayout>
   );
 }

@@ -13,7 +13,7 @@ interface LanguageContextType {
 const translations = {
   en: {
     // Common
-    'gps.tracker': 'GPS Tracker',
+    'gps.tracker': 'Rad Gard',
     'realtime.fleet': 'Real-time Fleet Management',
     'online': 'Online',
     'offline': 'Offline',
@@ -113,7 +113,7 @@ const translations = {
     
     // Register
     'create.account.title': 'Create Account',
-    'join.gps.tracker': 'Join GPS Tracker today',
+    'join.gps.tracker': 'Join RadGard today',
     'create.account.btn': 'Create Account',
     'already.have.account': 'Already have an account?',
     
@@ -140,8 +140,8 @@ const translations = {
   },
   fa: {
     // Common
-    'gps.tracker': 'ردیاب جی‌پی‌اس',
-    'realtime.fleet': 'مدیریت ناوگان بلادرنگ',
+    'gps.tracker': 'ردگَرد',
+    'realtime.fleet': 'مدیریت بلادرنگ ناوگان شما',
     'online': 'آنلاین',
     'offline': 'آفلاین',
     'logout': 'خروج',
@@ -240,9 +240,9 @@ const translations = {
     
     // Register
     'create.account.title': 'ایجاد حساب',
-    'join.gps.tracker': 'به ردیاب جی‌پی‌اس بپیوندید',
+    'join.gps.tracker': 'به ردگَرد بپیوندید',
     'create.account.btn': 'ایجاد حساب',
-    'already.have.account': 'قبلاً حساب کاربری دارید؟',
+    'already.have.account': 'حساب کاربری دارید؟',
     
     // Status
     'online.status': 'آنلاین',
@@ -263,7 +263,7 @@ const translations = {
     'login.failed': 'ورود ناموفق بود',
     'register.failed': 'ثبت‌نام ناموفق بود',
     'please.enter.serial': 'لطفاً شماره سریال دستگاه را وارد کنید',
-    'please.enter.secret': 'لطفاً کلید مخفی دستگاه را وارد کنید',
+    'please.enter.secret': 'لطفاً کلید دستگاه را وارد کنید',
   }
 };
 

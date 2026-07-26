@@ -1,26 +1,31 @@
-# ===== OS =====
-.DS_Store
-Thumbs.db
-
-# ===== ENV =====
-.env
-
-# ===== BACKEND =====
-tracking-backend/bin/
-*.exe
-*.log
-
-# Go build cache
-*.out
-
-# ===== FRONTEND =====
+# Node
 tracking-frontend/node_modules/
 tracking-frontend/dist/
-tracking-frontend/.vite/
 
-# ===== IDE =====
+# Go
+tracking-backend/bin/
+tracking-backend/tmp/
+
+# IDE
 .vscode/
 .idea/
 
-# ===== Logs =====
-logs/
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Env files
+.env
+.env.*
+
+# Build
+build/
+dist/
+
+# Executables
+*.exe
+*.dll
+*.so

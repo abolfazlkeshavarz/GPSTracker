@@ -13,17 +13,17 @@ set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f "$ROOT_DIR/.env.docker" ]] && set -a && . "$ROOT_DIR/.env.docker" && set +a
 
-DB_HOST="${DB_HOST:-localhost}"
+DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-5433}"
 DB_USER="${DB_USER:-postgres}"
 DB_PASSWORD="${DB_PASSWORD:-postgres}"
 DB_NAME="${DB_NAME:-tracking_db}"
-REDIS_HOST="${REDIS_HOST:-localhost}"
+REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
-MQTT_HOST="${MQTT_HOST:-localhost}"
+MQTT_HOST="${MQTT_HOST:-127.0.0.1}"
 MQTT_PORT="${MQTT_PORT:-1883}"
 TILESERVER_PORT="${TILESERVER_PORT:-8081}"
-API_URL="${API_URL:-http://localhost:8080}"
+API_URL="${API_URL:-http://127.0.0.1:8080}"
 REMOTE="${REMOTE:-}"
 
 PG_CONTAINER="${PG_CONTAINER:-gpstracker-postgres}"
@@ -38,10 +38,43 @@ ok()   { echo "  ${GREEN}[OK]${NC}   $1"; }
 bad()  { echo "  ${RED}[FAIL]${NC} $1"; failures=$((failures + 1)); }
 warn() { echo "  ${YELLOW}[WARN]${NC} $1"; warnings=$((warnings + 1)); }
 
-# Docker Desktop on Windows does not always expose docker on PATH.
-DOCKER="$(command -v docker 2>/dev/null || true)"
-if [[ -z "$DOCKER" && -x "/c/Users/${USERNAME:-}/AppData/Local/Programs/DockerDesktop/resources/bin/docker" ]]; then
-  DOCKER="/c/Users/${USERNAME}/AppData/Local/Programs/DockerDesktop/resources/bin/docker"
+# Docker Desktop on Windows does not put docker on PATH for a non-login shell,
+# which is exactly what `make` spawns when invoked from PowerShell. Fall back
+# to the known install locations rather than skipping the container checks.
+# to_posix converts "C:\x\y" or "C:/x/y" into "/c/x/y" so bash file tests work.
+to_posix() {
+  local p="${1//\\//}"
+  sed -E 's|^([A-Za-z]):|/\L\1|' <<<"$p"
+}
+
+# The Makefile resolves docker and exports it as a Windows path; prefer that.
+DOCKER_SEARCHED=""
+
+if [[ -n "${DOCKER:-}" ]]; then
+  DOCKER="$(to_posix "$DOCKER")"
+  [[ -x "$DOCKER" ]] || command -v "$DOCKER" >/dev/null 2>&1 || DOCKER=""
+fi
+
+if [[ -z "${DOCKER:-}" ]]; then
+  DOCKER="$(command -v docker 2>/dev/null || true)"
+fi
+
+if [[ -z "$DOCKER" ]]; then
+  DOCKER_BASE="$(to_posix "${LOCALAPPDATA:-${USERPROFILE:-$HOME}/AppData/Local}")"
+
+  for candidate in \
+      "$DOCKER_BASE/Programs/DockerDesktop/resources/bin/docker.exe" \
+      "$HOME/AppData/Local/Programs/DockerDesktop/resources/bin/docker.exe" \
+      "/c/Program Files/Docker/Docker/resources/bin/docker.exe" \
+      "/c/ProgramData/DockerDesktop/version-bin/docker.exe"
+  do
+    DOCKER_SEARCHED+="    $candidate"$'\n'
+
+    if [[ -x "$candidate" ]]; then
+      DOCKER="$candidate"
+      break
+    fi
+  done
 fi
 
 # tcp_check host port -- portable "is something listening" without netcat.
@@ -90,7 +123,8 @@ fi
 echo ""
 echo "Containers"
 if [[ -z "$DOCKER" ]]; then
-  warn "docker not found on PATH; skipping container checks"
+  warn "docker not found; skipping container checks. Looked in:"
+  printf '%s' "$DOCKER_SEARCHED"
 else
   for c in "$PG_CONTAINER" "$REDIS_CONTAINER"; do
     status=$("$DOCKER" inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo "missing")
@@ -184,13 +218,13 @@ fi
 
 # -------------------------------------------------------------- tileserver
 echo ""
-echo "Tile server (localhost:$TILESERVER_PORT)"
-if ! tcp_check localhost "$TILESERVER_PORT"; then
+echo "Tile server (127.0.0.1:$TILESERVER_PORT)"
+if ! tcp_check 127.0.0.1 "$TILESERVER_PORT"; then
   warn "not running (optional: docker compose up -d tileserver)"
 else
   ok "port $TILESERVER_PORT open"
   code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
-    "http://localhost:$TILESERVER_PORT/styles/osm-bright/style.json" 2>/dev/null); code=${code:-000}
+    "http://127.0.0.1:$TILESERVER_PORT/styles/osm-bright/style.json" 2>/dev/null); code=${code:-000}
   if [[ "$code" == "200" ]]; then
     ok "style osm-bright served"
   else

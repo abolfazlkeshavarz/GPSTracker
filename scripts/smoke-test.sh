@@ -14,9 +14,9 @@ set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f "$ROOT_DIR/.env.docker" ]] && set -a && . "$ROOT_DIR/.env.docker" && set +a
 
-API_URL="${API_URL:-http://localhost:8080}"
+API_URL="${API_URL:-http://127.0.0.1:8080}"
 SEED_PASSWORD="${SEED_PASSWORD:-password123}"
-MQTT_HOST="${MQTT_HOST:-localhost}"
+MQTT_HOST="${MQTT_HOST:-127.0.0.1}"
 MQTT_PORT="${MQTT_PORT:-1883}"
 
 GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; YELLOW=$'\033[1;33m'; NC=$'\033[0m'
@@ -66,9 +66,17 @@ echo ""
 echo "1. Reachability"
 
 resp=$(api GET /health)
-if [[ "$(status_of "$resp")" != "200" ]]; then
+health_status=$(status_of "$resp")
+
+if [[ "$health_status" != "200" ]]; then
   echo ""
-  echo "${RED}API is not reachable at $API_URL — start it with 'make run'.${NC}"
+  echo "${RED}API is not reachable at $API_URL (got HTTP ${health_status:-none}).${NC}"
+  echo "Start it with 'make run', or set API_URL to point somewhere else."
+  echo ""
+  # Show what curl actually said; "000" means the request never completed.
+  echo "curl diagnostics:"
+  curl -sS -o /dev/null -w '  http_code=%{http_code} exit=%{exitcode} err=%{errormsg}\n' \
+      --max-time 15 "$API_URL/health" 2>&1 | sed 's/^/  /' || true
   exit 1
 fi
 pass "GET /health -> 200"

@@ -88,8 +88,8 @@ func AdminCreateDevice(c *gin.Context) {
 		return
 	}
 
-	// Log the action
-	logAdminAction(c, "CREATE_DEVICE", "device", req.Serial, req)
+	// Log the action. req carries device_secret, which is a credential.
+	logAdminAction(c, "CREATE_DEVICE", "device", req.Serial, gin.H{"serial": req.Serial})
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Device created successfully",
@@ -158,8 +158,12 @@ func AdminUpdateDevice(c *gin.Context) {
 		return
 	}
 
-	// Log the action
-	logAdminAction(c, "UPDATE_DEVICE", "device", serial, req)
+	// Log the action, redacting the device secret.
+	logAdminAction(c, "UPDATE_DEVICE", "device", serial, gin.H{
+		"user_id":         req.UserID,
+		"is_active":       req.IsActive,
+		"secret_changed":  req.DeviceSecret != "",
+	})
 
 	c.JSON(http.StatusOK, gin.H{"message": "Device updated successfully"})
 }
@@ -231,8 +235,11 @@ func AdminDeactivateDevice(c *gin.Context) {
 // Admin: Get all users with search
 func AdminGetUsers(c *gin.Context) {
 	search := c.Query("search")
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	// Atoi errors were discarded, so limit=abc silently became 0 and returned
+	// an empty page; an unbounded limit could pull the whole table.
+	limit := clampedIntQuery(c, "limit", 50, 1, 500)
+	offset := clampedIntQuery(c, "offset", 0, 0, 1_000_000)
 
 	var query string
 	var args []interface{}
@@ -296,7 +303,11 @@ func AdminGetUsers(c *gin.Context) {
 
 // Admin: Get user by ID
 func AdminGetUser(c *gin.Context) {
-	id := c.Param("id")
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user id"})
+		return
+	}
 
 	var user models.User
 	err := db.DB.QueryRow(`
@@ -364,7 +375,11 @@ func AdminCreateUser(c *gin.Context) {
 		return
 	}
 
-	logAdminAction(c, "CREATE_USER", "user", strconv.Itoa(user.ID), req)
+	// req carries the plaintext password; log only the non-secret fields.
+	logAdminAction(c, "CREATE_USER", "user", strconv.Itoa(user.ID), gin.H{
+		"phone": req.Phone,
+		"role":  req.Role,
+	})
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created successfully",
@@ -374,7 +389,11 @@ func AdminCreateUser(c *gin.Context) {
 
 // Admin: Update user
 func AdminUpdateUser(c *gin.Context) {
-	id := c.Param("id")
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user id"})
+		return
+	}
 
 	var req struct {
 		Phone    string `json:"phone,omitempty"`
@@ -385,6 +404,33 @@ func AdminUpdateUser(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Role was written to the database unvalidated. Anything other than
+	// "admin"/"user" silently locks the account out of the admin panel,
+	// since AdminMiddleware compares against the literal "admin".
+	if req.Role != "" && req.Role != "admin" && req.Role != "user" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role must be 'admin' or 'user'"})
+		return
+	}
+
+	// AdminCreateUser enforces min=6; keep the update path consistent.
+	if req.Password != "" && len(req.Password) < 6 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Password must be at least 6 characters"})
+		return
+	}
+
+	// Refuse to strip the last admin, which would leave nobody able to
+	// administer the system.
+	if req.Role == "user" {
+		adminID, _ := c.Get("user_id")
+		if adminID == id {
+			var adminCount int
+			if err := db.DB.QueryRow("SELECT COUNT(*) FROM users WHERE role = 'admin'").Scan(&adminCount); err == nil && adminCount <= 1 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot remove the last admin"})
+				return
+			}
+		}
 	}
 
 	// Build dynamic update query
@@ -450,18 +496,27 @@ func AdminUpdateUser(c *gin.Context) {
 		return
 	}
 
-	logAdminAction(c, "UPDATE_USER", "user", id, req)
+	// Never log the submitted password, even hashed-at-rest elsewhere.
+	logAdminAction(c, "UPDATE_USER", "user", strconv.Itoa(id), gin.H{
+		"phone":           req.Phone,
+		"role":            req.Role,
+		"password_changed": req.Password != "",
+	})
 
 	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
 }
 
 // Admin: Delete user
 func AdminDeleteUser(c *gin.Context) {
-	id := c.Param("id")
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user id"})
+		return
+	}
 
 	// Don't allow deleting yourself
 	adminID, _ := c.Get("user_id")
-	if strconv.Itoa(adminID.(int)) == id {
+	if adminID == id {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete your own account"})
 		return
 	}
@@ -490,7 +545,7 @@ func AdminDeleteUser(c *gin.Context) {
 		return
 	}
 
-	logAdminAction(c, "DELETE_USER", "user", id, gin.H{"device_count": deviceCount})
+	logAdminAction(c, "DELETE_USER", "user", strconv.Itoa(id), gin.H{"device_count": deviceCount})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":          "User deleted successfully",
@@ -500,7 +555,11 @@ func AdminDeleteUser(c *gin.Context) {
 
 // Admin: Get user's devices
 func AdminGetUserDevices(c *gin.Context) {
-	userID := c.Param("id")
+	userID, ok := parseIDParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user id"})
+		return
+	}
 
 	rows, err := db.DB.Query(`
         SELECT serial, device_secret, is_active, activated_at, created_at
@@ -673,7 +732,8 @@ func AdminGetUserDevices(c *gin.Context) {
 
 // Admin: Get audit logs
 func AdminGetLogs(c *gin.Context) {
-	limit := c.DefaultQuery("limit", "100")
+	// Was passed through as a raw string, so limit=abc reached Postgres.
+	limit := clampedIntQuery(c, "limit", 100, 1, 500)
 	action := c.Query("action")
 	entityType := c.Query("entity_type")
 
@@ -887,9 +947,9 @@ func AdminGetDevices(c *gin.Context) {
     search := c.Query("search")
     isActive := c.Query("is_active")
     userID := c.Query("user_id")
-    limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-    offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-    
+    limit := clampedIntQuery(c, "limit", 50, 1, 500)
+    offset := clampedIntQuery(c, "offset", 0, 0, 1_000_000)
+
     // Check if last_modified_at column exists
     var hasLastModified bool
     err := db.DB.QueryRow(`
@@ -965,20 +1025,14 @@ func AdminGetDevices(c *gin.Context) {
         var activatedAt, createdAt, lastModifiedAt sql.NullTime
         var createdBy sql.NullInt64
         
-        if hasLastModified {
-            err := rows.Scan(&serial, &deviceSecret, &userID, &isActive,
-                &activatedAt, &createdBy, &createdAt, &lastModifiedAt, &userPhone)
-            if err != nil {
-                continue
-            }
-        } else {
-            err := rows.Scan(&serial, &deviceSecret, &userID, &isActive,
-                &activatedAt, &createdBy, &createdAt, &lastModifiedAt, &userPhone)
-            if err != nil {
-                continue
-            }
+        // Both query variants project the same nine columns (the fallback
+        // selects NULL AS last_modified_at), so one scan covers both.
+        if err := rows.Scan(&serial, &deviceSecret, &userID, &isActive,
+            &activatedAt, &createdBy, &createdAt, &lastModifiedAt, &userPhone); err != nil {
+            continue
         }
-        
+
+
         device := map[string]interface{}{
             "serial":        serial,
             "device_secret": deviceSecret,

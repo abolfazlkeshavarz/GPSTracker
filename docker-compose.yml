@@ -1,0 +1,99 @@
+# Local development stack for GPSTracker.
+#
+# Everything here is bound to 127.0.0.1 so none of it is reachable from the
+# network. The credentials below are development-only by design; production
+# gets its values from VPS/deploy.sh.
+#
+#   make up      start the stack
+#   make down    stop it
+#   make health  check every service
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gpstracker-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-tracking_db}
+      # Deterministic collation so ORDER BY matches production.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # 5433 by default: this machine already runs a native PostgreSQL on
+      # 5432, and binding the same port fails. Change DB_PORT in .env.docker
+      # if you would rather use the standard port.
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-tracking_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:latest
+    container_name: gpstracker-redis
+    restart: unless-stopped
+    # Persist so the "latest location" cache survives a restart.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Opt-in: this machine already runs Mosquitto as a native Windows service on
+  # 1883, so the default stack uses that and leaves this profile disabled.
+  # Start it only if you have no local broker:
+  #     docker compose --profile broker up -d mosquitto
+  # (stop the native service first, or the port bind will fail).
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: gpstracker-mqtt
+    profiles: ["broker"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MQTT_PORT:-1883}:1883"
+      - "127.0.0.1:${MQTT_WS_PORT:-8083}:8083"
+    volumes:
+      - ./deploy/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      # mosquitto_sub exits non-zero if the broker is not accepting clients.
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -t '$$SYS/#' -C 1 -W 3 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    container_name: gpstracker-tileserver
+    restart: unless-stopped
+    # MAPS_DIR holds config.json, the .mbtiles, styles/ and fonts/.
+    # Override in .env.docker if the maps live elsewhere.
+    command: ["--config", "/data/config.json", "--port", "8080"]
+    ports:
+      - "127.0.0.1:${TILESERVER_PORT:-8081}:8080"
+    volumes:
+      - ${MAPS_DIR:-D:/Abolfazl Keshavarz/maps}:/data:ro
+    healthcheck:
+      # The image ships neither wget nor curl, so probe with the node runtime
+      # that tileserver-gl itself runs on.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8080/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  postgres-data:
+  redis-data:
+  mosquitto-data:

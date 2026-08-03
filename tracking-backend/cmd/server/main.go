@@ -1,15 +1,19 @@
 package main
 
 import (
+    "context"
     "log"
+    "net/http"
     "os"
     "os/signal"
     "syscall"
-    "tracking-backend/internal/utils"
+    "time"
+
     "tracking-backend/internal/api"
     "tracking-backend/internal/config"
     "tracking-backend/internal/db"
     "tracking-backend/internal/mqtt"
+    "tracking-backend/internal/utils"
 )
 
 func main() {
@@ -44,10 +48,19 @@ func main() {
 
     router := api.SetupRouter(cfg)
 
+    srv := &http.Server{
+        Addr:              ":" + cfg.ServerPort,
+        Handler:           router,
+        ReadHeaderTimeout: 10 * time.Second,
+        IdleTimeout:       120 * time.Second,
+        // No ReadTimeout/WriteTimeout: they would cut off long-lived
+        // WebSocket connections, which manage their own deadlines.
+    }
+
     go func() {
         log.Println("Server running on port", cfg.ServerPort)
 
-        if err := router.Run(":" + cfg.ServerPort); err != nil {
+        if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
             log.Fatal(err)
         }
     }()
@@ -59,4 +72,17 @@ func main() {
     <-quit
 
     log.Println("Shutting down...")
+
+    // Previously this only logged and exited, dropping in-flight requests and
+    // never disconnecting from the MQTT broker.
+    ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+    defer cancel()
+
+    if err := srv.Shutdown(ctx); err != nil {
+        log.Println("Server shutdown error:", err)
+    }
+
+    mqtt.StopSubscriber()
+
+    log.Println("Shutdown complete")
 }

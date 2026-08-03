@@ -27,3 +27,11 @@ dist/
 *.exe
 *.dll
 *.so
+# Secrets - never commit
+.env
+*.env
+!.env.example
+
+# Production secrets and generated broker credentials
+.env.prod
+deploy/mosquitto/passwd

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import { useLanguage } from "../context/LanguageContext";
+import { useAuthStore } from "../store/authStore";
 import api from "../api/axios";
 import UserModal from "../components/admin/UserModal";
 import UserDevicesModal from "../components/admin/UserDevicesModal";
@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 
 export default function AdminPanel() {
-  const navigate = useNavigate();
   const { t, isRTL } = useLanguage();
   const [users, setUsers] = useState<any[]>([]);
   const [devices, setDevices] = useState<any[]>([]);
@@ -127,24 +126,22 @@ export default function AdminPanel() {
     loadData(currentPage, searchTerm);
   };
 
-  // Debounced search function
+  // Debounced reload. This effect previously coexisted with a second one that
+  // also loaded on tab change, so every mount and every tab switch fired two
+  // identical rounds of requests. Debouncing all three inputs here keeps it to
+  // one, and typing in the search box still waits for a pause.
+  const isFirstLoad = useRef(true);
+
   useEffect(() => {
-    if (activeTab !== "users" && activeTab !== "devices") {
-      return;
-    }
+    const delay = isFirstLoad.current ? 0 : 400;
+    isFirstLoad.current = false;
 
     const timeout = setTimeout(() => {
-      setCurrentPage(1);
-      loadData(1, searchTerm);
-    }, 500);
+      loadData(currentPage, searchTerm);
+    }, delay);
 
     return () => clearTimeout(timeout);
-  }, [searchTerm, activeTab]);
-
-  // Load data when tab changes or page changes
-  useEffect(() => {
-    loadData(currentPage, searchTerm);
-  }, [activeTab, currentPage]);
+  }, [searchTerm, activeTab, currentPage]);
 
   const handleCreateDevice = async (deviceData: { serial: string; device_secret: string }) => {
     try {
@@ -238,16 +235,13 @@ export default function AdminPanel() {
     };
   };
 
-  // If not admin, redirect
-  const userStr = localStorage.getItem("user");
-  const user = userStr ? JSON.parse(userStr) : null;
-  useEffect(() => {
-    if (!user || user.role !== "admin") {
-      navigate("/dashboard");
-    }
-  }, [user, navigate]);
+  // The <RequireAdmin> route guard already handles redirecting non-admins;
+  // this is just a render-time backstop. Reading from the store instead of
+  // re-parsing localStorage avoids producing a new object identity (and so a
+  // re-fired effect) on every single render.
+  const currentUser = useAuthStore((state) => state.user);
 
-  if (!user || user.role !== "admin") {
+  if (currentUser?.role !== "admin") {
     return null;
   }
 
@@ -355,7 +349,12 @@ export default function AdminPanel() {
                     type="text"
                     placeholder={`Search ${activeTab} by name or ID...`}
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      // Reset to the first page, or a search can land on an
+                      // out-of-range offset and look like "no results".
+                      setSearchTerm(e.target.value);
+                      setCurrentPage(1);
+                    }}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                   />
                 </div>

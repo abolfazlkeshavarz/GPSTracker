@@ -1,6 +1,9 @@
 package api
 
 import (
+    "net/http"
+    "time"
+
     "tracking-backend/internal/config"
 
     "github.com/gin-gonic/gin"
@@ -9,24 +12,42 @@ import (
 func SetupRouter(cfg *config.Config) *gin.Engine {
     router := gin.Default()
 
-    // CORS middleware (for web/mobile apps)
+    // Reject absurdly large request bodies before they are parsed.
     router.Use(func(c *gin.Context) {
-        c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-        c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-        c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-        c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+        c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20) // 1 MiB
+        c.Next()
+    })
 
-        if c.Request.Method == "OPTIONS" {
-            c.AbortWithStatus(204)
+    // CORS middleware (for web/mobile apps).
+    router.Use(func(c *gin.Context) {
+        origin := c.GetHeader("Origin")
+
+        // "*" cannot be combined with Allow-Credentials — browsers reject the
+        // pair outright — so echo back only origins we actually trust.
+        if origin != "" && IsOriginAllowed(origin) {
+            c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+            c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+            c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+            c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+            c.Writer.Header().Set("Access-Control-Max-Age", "600")
+        }
+
+        // Responses differ per origin, so caches must key on it.
+        c.Writer.Header().Add("Vary", "Origin")
+
+        if c.Request.Method == http.MethodOptions {
+            c.AbortWithStatus(http.StatusNoContent)
             return
         }
 
         c.Next()
     })
 
-    // Public routes
-    router.POST("/api/register", Register)
-    router.POST("/api/login", Login)
+    // Public routes. These verify a credential, so they are rate limited per
+    // IP to make online password guessing impractical.
+    authLimiter := RateLimitMiddleware(10, time.Minute)
+    router.POST("/api/register", authLimiter, Register)
+    router.POST("/api/login", authLimiter, Login)
 
     // Health check
     router.GET("/health", func(c *gin.Context) {
@@ -37,11 +58,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
     authorized := router.Group("/api")
     authorized.Use(AuthMiddleware(cfg.JWTSecret))
     {
-        // Device management
-        authorized.POST("/activate", ActivateDevice)
+        // Device management. Activation checks a device secret, so it gets the
+        // same brute-force protection as login.
+        authorized.POST("/activate", RateLimitMiddleware(10, time.Minute), ActivateDevice)
         authorized.GET("/devices", GetUserDevices)
         authorized.GET("/devices/:serial/latest", GetLatestLocation)
         authorized.GET("/devices/:serial/history", GetLocationHistory)
+        authorized.GET("/devices/:serial/track", GetDeviceTrack)
         authorized.GET("/devices/:serial/signal", GetSignalQuality)
         authorized.GET("/devices/:serial/status", GetDeviceStatus)
         

@@ -3,10 +3,23 @@ import maplibregl from "maplibre-gl";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
-maplibregl.setRTLTextPlugin(
-  "/rtl/mapbox-gl-rtl-text.js",
-  true // lazy load
-);
+// maplibre throws if this is called more than once, which happens on HMR
+// reloads of this module during development.
+try {
+  maplibregl.setRTLTextPlugin(
+    "/rtl/mapbox-gl-rtl-text.js",
+    true // lazy load
+  );
+} catch {
+  // Plugin already registered.
+}
+
+// The style URL was hardcoded to the production tile server, so a local dev
+// session could not render a map without internet access to that host. Point
+// VITE_MAP_STYLE_URL at the local tileserver-gl container to work offline.
+const MAP_STYLE_URL =
+  import.meta.env.VITE_MAP_STYLE_URL ||
+  "https://maps.abolfazl.fun/styles/osm-bright/style.json";
 
 interface Props {
   lat: number;
@@ -24,7 +37,7 @@ export default function LiveMap({ lat, lng, serial }: Props) {
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: "https://maps.abolfazl.fun/styles/osm-bright/style.json",
+      style: MAP_STYLE_URL,
       center: [lng, lat],
       zoom: 15,
       attributionControl: false,
@@ -82,7 +95,9 @@ export default function LiveMap({ lat, lng, serial }: Props) {
       ref={mapContainer}
       style={{
         width: "100%",
-        height: "100vh",
+        // 100vh overflowed the fixed-height card this map is rendered into,
+        // pushing the bottom of the map out of view. Fill the parent instead.
+        height: "100%",
       }}
     />
   );

@@ -35,7 +35,17 @@ MQTT_PASSWORD="admin"
 MQTT_PORT=1883
 MQTT_WS_PORT=8083
 
-JWT_SECRET="Whoknowwho!!"
+# JWT signing key. This must NOT be hardcoded: this script is committed to the
+# repository, so a literal value here is public knowledge and anyone could
+# forge a token for any user, including an admin.
+#
+# Generated once and then reused from the existing .env on later deploys, so
+# redeploying does not invalidate everyone's active sessions.
+if [[ -f "${BACKEND_DIR}/.env" ]] && grep -q '^JWT_SECRET=.\+' "${BACKEND_DIR}/.env"; then
+  JWT_SECRET="$(grep '^JWT_SECRET=' "${BACKEND_DIR}/.env" | head -1 | cut -d= -f2-)"
+else
+  JWT_SECRET="$(openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-64)"
+fi
 
 # Maps Configuration
 MAPS_DOWNLOAD_URL="https://bucketfirst.s3.ir-thr-at1.arvanstorage.ir/iran-output.zip"
@@ -509,10 +519,17 @@ JWT_EXPIRY_HOURS=72
 
 # Server
 SERVER_PORT=8080
+APP_DOMAIN=${DOMAIN}
+
+# Browser origins allowed for CORS and WebSocket upgrades
+ALLOWED_ORIGINS=https://${DOMAIN},https://www.${DOMAIN}
 
 # Environment
 APP_ENV=production
 EOF
+
+# The file holds the JWT signing key and database password.
+chmod 600 "${BACKEND_DIR}/.env"
 
 log ".env file written to ${BACKEND_DIR}/.env"
 log "MQTT Broker configured at ${SERVER_IP}:${MQTT_PORT}"

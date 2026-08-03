@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getLatestLocation } from "../api/devices";
 import LiveMap from "../components/map/LiveMap";
@@ -18,7 +18,8 @@ import {
   TrendingUp,
   Zap,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  History
 } from "lucide-react";
 
 export default function DeviceDetails() {
@@ -122,6 +123,13 @@ export default function DeviceDetails() {
             <p className="text-gray-500 mt-1 font-mono">{t('serial')}: {serial}</p>
           </div>
           <div className={`flex items-center ${isRTL ? 'space-x-reverse' : 'space-x-4'}`}>
+            <Link
+              to={`/device/${serial}/history`}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-medium hover:shadow-lg transition"
+            >
+              <History className="w-4 h-4" />
+              {t('view.history')}
+            </Link>
             <div className={`flex items-center ${isRTL ? 'space-x-reverse' : 'space-x-2'} px-3 py-2 bg-gray-100 rounded-lg`}>
               <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
               <span className="text-sm text-gray-600">

@@ -50,6 +50,7 @@ const translations = {
     
     // Device Details
     'device.details': 'Device Details',
+    'view.history': 'View History',
     'serial': 'Serial',
     'live.updates': 'Live Updates',
     'connecting': 'Connecting...',
@@ -177,6 +178,7 @@ const translations = {
     
     // Device Details
     'device.details': 'جزئیات دستگاه',
+    'view.history': 'مشاهده تاریخچه',
     'serial': 'سریال',
     'live.updates': 'به‌روزرسانی زنده',
     'connecting': 'در حال اتصال...',

@@ -9,31 +9,32 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// isWebSocketUpgrade reports whether the request is a WebSocket handshake.
+// Browsers cannot attach an Authorization header to `new WebSocket(...)`, so
+// those requests — and only those — may carry the token in the query string.
+func isWebSocketUpgrade(r *http.Request) bool {
+	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		return false
+	}
+	for _, token := range strings.Split(r.Header.Get("Connection"), ",") {
+		if strings.EqualFold(strings.TrimSpace(token), "upgrade") {
+			return true
+		}
+	}
+	return false
+}
+
 func AuthMiddleware(secret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		var token string
 
-		// WebSocket token
-		queryToken := c.Query("token")
+		authHeader := c.GetHeader("Authorization")
 
-		if queryToken != "" {
-			token = queryToken
-		} else {
-
-			authHeader := c.GetHeader("Authorization")
-
-			if authHeader == "" {
-				c.JSON(http.StatusUnauthorized, gin.H{
-					"error": "Authorization required",
-				})
-				c.Abort()
-				return
-			}
-
+		if authHeader != "" {
 			parts := strings.SplitN(authHeader, " ", 2)
 
-			if len(parts) != 2 || parts[0] != "Bearer" {
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 				c.JSON(http.StatusUnauthorized, gin.H{
 					"error": "Invalid authorization format",
 				})
@@ -41,7 +42,19 @@ func AuthMiddleware(secret []byte) gin.HandlerFunc {
 				return
 			}
 
-			token = parts[1]
+			token = strings.TrimSpace(parts[1])
+		} else if isWebSocketUpgrade(c.Request) {
+			// Accepting ?token= on ordinary routes leaked credentials into
+			// access logs, proxy logs, browser history and Referer headers.
+			token = c.Query("token")
+		}
+
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Authorization required",
+			})
+			c.Abort()
+			return
 		}
 
 		claims, err := utils.ValidateJWT(token, secret)

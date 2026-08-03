@@ -30,13 +30,19 @@ type Config struct {
     // JWT
     JWTSecret      []byte
     JWTExpiryHours int
-    
+
     //Domain
     AppDomain string
-    
+
     // Server
     ServerPort string
+    SSLMode    string
+    Env        string
 }
+
+// insecureDevSecret is the fallback signing key. It is public knowledge (it
+// lives in the repo), so it is only ever allowed outside production.
+const insecureDevSecret = "insecure-development-secret-do-not-use-in-production"
 
 func Load() *Config {
     // Load .env file if it exists
@@ -44,7 +50,35 @@ func Load() *Config {
         log.Println("No .env file found, using environment variables")
     }
 
-    jwtExpiryHours, _ := strconv.Atoi(getEnv("JWT_EXPIRY_HOURS", "72"))
+    env := getEnv("APP_ENV", "development")
+
+    // A bad JWT_EXPIRY_HOURS used to be swallowed by a discarded error and
+    // become 0, which made every issued token expire immediately.
+    jwtExpiryHours := 72
+    if raw := getEnv("JWT_EXPIRY_HOURS", ""); raw != "" {
+        parsed, err := strconv.Atoi(raw)
+        if err != nil || parsed <= 0 {
+            log.Printf("Invalid JWT_EXPIRY_HOURS %q, falling back to %d hours", raw, jwtExpiryHours)
+        } else {
+            jwtExpiryHours = parsed
+        }
+    }
+
+    jwtSecret := getEnv("JWT_SECRET", "")
+    if jwtSecret == "" {
+        if env == "production" {
+            log.Fatal("JWT_SECRET must be set in production")
+        }
+        log.Println("WARNING: JWT_SECRET is not set, using an insecure development key")
+        jwtSecret = insecureDevSecret
+    } else if len(jwtSecret) < 32 {
+        // HS256 keys shorter than the 256-bit output add nothing over a
+        // full-length one and are well within brute-force range.
+        if env == "production" {
+            log.Fatal("JWT_SECRET must be at least 32 characters in production")
+        }
+        log.Println("WARNING: JWT_SECRET is shorter than 32 characters")
+    }
 
     return &Config{
         // PostgreSQL
@@ -66,12 +100,22 @@ func Load() *Config {
         MQTTTopic:    getEnv("MQTT_TOPIC", "devices/+/location"),
 
         // JWT
-        JWTSecret:      []byte(getEnv("JWT_SECRET", "Whoknowwho!!11Whoknowwho!!11")),
+        JWTSecret:      []byte(jwtSecret),
         JWTExpiryHours: jwtExpiryHours,
+
+        // Domain
+        AppDomain: getEnv("APP_DOMAIN", ""),
 
         // Server
         ServerPort: getEnv("SERVER_PORT", "8080"),
+        SSLMode:    getEnv("DB_SSLMODE", "disable"),
+        Env:        env,
     }
+}
+
+// IsProduction reports whether the app is running with production guardrails.
+func (c *Config) IsProduction() bool {
+    return c.Env == "production"
 }
 
 func (c *Config) PostgresDSN() string {
@@ -80,7 +124,7 @@ func (c *Config) PostgresDSN() string {
         " user=" + c.DBUser +
         " password=" + c.DBPassword +
         " dbname=" + c.DBName +
-        " sslmode=disable"
+        " sslmode=" + c.SSLMode
 }
 
 func (c *Config) RedisAddr() string {

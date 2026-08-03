@@ -1,11 +1,13 @@
 package mqtt
 
 import (
+    "crypto/subtle"
     "database/sql"
     "encoding/json"
     "log"
-    "time"
     "strings"
+    "time"
+
     "tracking-backend/internal/db"
     "tracking-backend/internal/models"
     "tracking-backend/internal/services"
@@ -28,6 +30,10 @@ type LocationMessageWithCSQ struct {
     Operator   string  `json:"operator,omitempty"`
     Ignition   bool    `json:"ignition,omitempty"`
     Timestamp  int64   `json:"timestamp,omitempty"`
+    Heading    float64 `json:"heading,omitempty"`
+    Altitude   float64 `json:"altitude,omitempty"`
+    HDOP       float64 `json:"hdop,omitempty"`
+    FixAgeMs   int     `json:"fix_age_ms,omitempty"`
 }
 
 func StartSubscriber(pg *sql.DB, rdb *redis.Client, broker, user, pass, topic string) {
@@ -49,18 +55,33 @@ func StartSubscriber(pg *sql.DB, rdb *redis.Client, broker, user, pass, topic st
         false,
     )
 
-    mqttClient = mqtt.NewClient(opts)
-    if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
-        log.Fatal("MQTT connect error:", token.Error())
-    }
-    log.Println("Connected to MQTT broker:", broker)
+    // Resubscribe on every (re)connect. Without this the client silently stops
+    // receiving locations after any broker restart, because the subscription
+    // below is only ever issued once.
+    opts.SetOnConnectHandler(func(c mqtt.Client) {
+        log.Println("Connected to MQTT broker:", broker)
 
-    if token := mqttClient.Subscribe(topic, 1, func(c mqtt.Client, msg mqtt.Message) {
-        handleMessage(pg, rdb, msg.Topic(), msg.Payload())
-    }); token.Wait() && token.Error() != nil {
-        log.Fatal("MQTT subscribe error:", token.Error())
+        if token := c.Subscribe(topic, 1, func(_ mqtt.Client, msg mqtt.Message) {
+            handleMessage(pg, rdb, msg.Topic(), msg.Payload())
+        }); token.Wait() && token.Error() != nil {
+            log.Println("MQTT subscribe error:", token.Error())
+            return
+        }
+
+        log.Println("Subscribed to topic:", topic)
+    })
+
+    opts.SetConnectionLostHandler(func(_ mqtt.Client, err error) {
+        log.Println("MQTT connection lost:", err)
+    })
+
+    mqttClient = mqtt.NewClient(opts)
+
+    // This runs in its own goroutine: a log.Fatal here would take the whole
+    // API server down just because the broker was briefly unreachable.
+    if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
+        log.Println("MQTT connect error (will keep retrying):", token.Error())
     }
-    log.Println("Subscribed to topic:", topic)
 }
 
 func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) {
@@ -105,7 +126,9 @@ func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) 
         return
     }
 
-    if storedSecret != loc.Secret {
+    // Constant-time so a broker-side attacker cannot recover a device secret
+    // byte by byte from response timing.
+    if subtle.ConstantTimeCompare([]byte(storedSecret), []byte(loc.Secret)) != 1 {
         log.Printf("Invalid secret for device: %s", loc.Device)
         return
     }
@@ -114,9 +137,13 @@ func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) 
 
     // Store to PostgreSQL - Updated with battery field
     _, err = pg.Exec(`
-        INSERT INTO location_history (device_serial, lat, lng, speed, satellites, csq, battery, recorded_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-        loc.Device, loc.Lat, loc.Lng, loc.Speed, loc.Satellites, loc.CSQ, loc.Battery)
+        INSERT INTO location_history
+            (device_serial, lat, lng, speed, satellites, csq, battery, ignition,
+             heading, altitude, hdop, operator, fix_age_ms, recorded_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())`,
+        loc.Device, loc.Lat, loc.Lng, loc.Speed, loc.Satellites, loc.CSQ, loc.Battery, loc.Ignition,
+        nullFloat(loc.Heading), nullFloat(loc.Altitude), nullFloat(loc.HDOP),
+        nullString(loc.Operator), nullInt(loc.FixAgeMs))
     if err != nil {
         log.Println("PG insert error:", err)
         return
@@ -134,6 +161,10 @@ func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) 
         Operator:   loc.Operator,
         Ignition:   loc.Ignition,
         Timestamp:  loc.Timestamp,
+        Heading:    loc.Heading,
+        Altitude:   loc.Altitude,
+        HDOP:       loc.HDOP,
+        FixAgeMs:   loc.FixAgeMs,
     }
 
     // Update Redis latest location
@@ -164,6 +195,30 @@ func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) 
 
     // Publish to Redis channel for WebSocket broadcast
     rdb.Publish(db.Ctx, "device_updates", string(latestJSON))
+}
+
+// Older firmware omits these fields entirely. Storing NULL rather than 0
+// keeps "not reported" distinguishable from "reported as zero" -- a real
+// distinction for heading, where 0 means due north.
+func nullFloat(v float64) interface{} {
+    if v == 0 {
+        return nil
+    }
+    return v
+}
+
+func nullString(v string) interface{} {
+    if v == "" {
+        return nil
+    }
+    return v
+}
+
+func nullInt(v int) interface{} {
+    if v == 0 {
+        return nil
+    }
+    return v
 }
 
 func calculateGPSBars(satellites int) int {

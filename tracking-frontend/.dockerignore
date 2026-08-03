@@ -1,0 +1,13 @@
+# node_modules must not be copied: npm ci rebuilds them for the image's
+# platform, and copying host-built native modules breaks the build.
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+Dockerfile
+.dockerignore

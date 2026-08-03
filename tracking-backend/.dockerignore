@@ -1,0 +1,10 @@
+# Keep secrets and build artifacts out of the build context.
+.env
+*.env
+!.env.example
+bin/
+tmp/
+*.exe
+*.log
+Dockerfile
+.dockerignore

@@ -42,6 +42,17 @@ type LocationMessage struct {
     Operator   string  `json:"operator,omitempty"`
     Ignition   bool    `json:"ignition,omitempty"`
     Timestamp  int64   `json:"timestamp,omitempty"`
+
+    // Heading is course over ground in degrees (0-360). Needed to orient the
+    // vehicle icon and to render direction along a history trail.
+    Heading  float64 `json:"heading,omitempty"`
+    Altitude float64 `json:"altitude,omitempty"`
+    // HDOP is horizontal dilution of precision: a direct accuracy estimate,
+    // far more meaningful than the satellite count alone. Lower is better.
+    HDOP float64 `json:"hdop,omitempty"`
+    // FixAgeMs is how stale the GPS fix was when it was published. A large
+    // value means the position is the last known one, not the current one.
+    FixAgeMs int `json:"fix_age_ms,omitempty"`
 }
 
 type LocationHistory struct {
@@ -99,6 +110,70 @@ type AdminUpdateDeviceRequest struct {
     DeviceSecret string `json:"device_secret,omitempty"`
     UserID       *int   `json:"user_id,omitempty"`
     IsActive     *bool  `json:"is_active,omitempty"`
+}
+
+// ---------------------------------------------------------------- tracking
+
+// TrackPoint is one stored GPS fix, as returned by the track endpoint.
+type TrackPoint struct {
+    Lat        float64   `json:"lat"`
+    Lng        float64   `json:"lng"`
+    Speed      int       `json:"speed"`
+    Satellites int       `json:"satellites"`
+    CSQ        int       `json:"csq"`
+    Battery    float64   `json:"battery"`
+    Ignition   *bool     `json:"ignition,omitempty"`
+    Heading    *float64  `json:"heading,omitempty"`
+    Altitude   *float64  `json:"altitude,omitempty"`
+    HDOP       *float64  `json:"hdop,omitempty"`
+    RecordedAt time.Time `json:"recorded_at"`
+}
+
+// TrackStop is a period the vehicle spent parked in one place.
+//
+// Detected rather than reported: the firmware has no "parked" signal, so a
+// stop is inferred from consecutive fixes staying inside a small radius for
+// longer than a minimum duration.
+type TrackStop struct {
+    Lat             float64   `json:"lat"`
+    Lng             float64   `json:"lng"`
+    ArrivedAt       time.Time `json:"arrived_at"`
+    DepartedAt      time.Time `json:"departed_at"`
+    DurationSeconds int       `json:"duration_seconds"`
+    // Human-readable duration, e.g. "1h 24m", so every client does not have
+    // to reimplement the same formatting.
+    Duration   string `json:"duration"`
+    PointCount int    `json:"point_count"`
+}
+
+// TrackSummary aggregates a whole track.
+type TrackSummary struct {
+    DistanceKm       float64   `json:"distance_km"`
+    PointCount       int       `json:"point_count"`
+    StopCount        int       `json:"stop_count"`
+    MaxSpeed         int       `json:"max_speed"`
+    AvgMovingSpeed   int       `json:"avg_moving_speed"`
+    TotalSeconds     int       `json:"total_seconds"`
+    MovingSeconds    int       `json:"moving_seconds"`
+    StoppedSeconds   int       `json:"stopped_seconds"`
+    TotalDuration    string    `json:"total_duration"`
+    MovingDuration   string    `json:"moving_duration"`
+    StoppedDuration  string    `json:"stopped_duration"`
+    FirstRecordedAt  time.Time `json:"first_recorded_at,omitempty"`
+    LastRecordedAt   time.Time `json:"last_recorded_at,omitempty"`
+}
+
+// TrackResponse is the payload of GET /api/devices/:serial/track.
+type TrackResponse struct {
+    Device string       `json:"device"`
+    From   time.Time    `json:"from"`
+    To     time.Time    `json:"to"`
+    Points []TrackPoint `json:"points"`
+    Stops  []TrackStop  `json:"stops"`
+    Summary TrackSummary `json:"summary"`
+    // Truncated reports that the range held more points than the limit, so
+    // the track is incomplete and the client should narrow the range.
+    Truncated bool `json:"truncated"`
 }
 
 type AuditLog struct {

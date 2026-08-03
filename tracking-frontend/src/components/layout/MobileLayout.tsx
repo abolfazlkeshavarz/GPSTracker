@@ -39,10 +39,32 @@ export default function MobileLayout({ children }: Props) {
     setIsMenuOpen(false);
   };
 
+  // Tailwind scans source text for complete class names, so interpolated
+  // names like `text-${color}-600` are never generated. Spell the active
+  // styles out in full instead.
   const navItems = [
-    { path: "/dashboard", label: t("dashboard"), icon: LayoutDashboard, color: "blue" },
-    { path: "/activate", label: t("activate.device"), icon: PlusCircle, color: "green" },
-    ...(user?.role === "admin" ? [{ path: "/admin", label: "Admin Panel", icon: Shield, color: "purple" }] : []),
+    {
+      path: "/dashboard",
+      label: t("dashboard"),
+      icon: LayoutDashboard,
+      activeClass: "text-blue-600 bg-blue-50",
+    },
+    {
+      path: "/activate",
+      label: t("activate.device"),
+      icon: PlusCircle,
+      activeClass: "text-green-600 bg-green-50",
+    },
+    ...(user?.role === "admin"
+      ? [
+          {
+            path: "/admin",
+            label: "Admin Panel",
+            icon: Shield,
+            activeClass: "text-purple-600 bg-purple-50",
+          },
+        ]
+      : []),
   ];
 
   // If not mobile, use original layout or just return children
@@ -147,9 +169,7 @@ export default function MobileLayout({ children }: Props) {
                 to={item.path}
                 onClick={() => setIsMenuOpen(false)}
                 className={`flex flex-col items-center gap-1 py-2 px-3 rounded-lg transition ${
-                  isActive 
-                    ? `text-${item.color}-600 bg-${item.color}-50` 
-                    : "text-gray-500 hover:text-gray-700"
+                  isActive ? item.activeClass : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 <item.icon className="w-5 h-5" />

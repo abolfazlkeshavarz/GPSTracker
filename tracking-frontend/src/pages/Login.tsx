@@ -25,18 +25,16 @@ export default function Login() {
       setLoading(true);
       setError("");
       const data = await loginUser(phone, password);
-      console.log("Login response:", data); // Debug log
-      
-      // Make sure we have token and user
+
+      // Make sure we have token and user. The response is deliberately not
+      // logged — it contains the bearer token.
       if (data.token && data.user) {
         login(data.token, data.user);
-        console.log("Navigating to dashboard...");
-        navigate("/dashboard");
+        navigate("/dashboard", { replace: true });
       } else {
         setError("Invalid response from server");
       }
     } catch (err: any) {
-      console.error("Login error:", err);
       setError(err.response?.data?.error || t('login.failed'));
     } finally {
       setLoading(false);

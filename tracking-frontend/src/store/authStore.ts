@@ -1,4 +1,10 @@
 import { create } from "zustand";
+import {
+  TOKEN_KEY,
+  USER_KEY,
+  clearSession,
+  isTokenExpired,
+} from "../lib/token";
 
 interface User {
   id: number;
@@ -14,30 +20,44 @@ interface AuthState {
   logout: () => void;
 }
 
+// Read the persisted session once at startup, discarding it if the token has
+// already expired. Previously any stale token counted as "signed in", so the
+// app rendered a dashboard whose every request then failed with 401.
+const loadSession = (): { token: string | null; user: User | null } => {
+  const token = localStorage.getItem(TOKEN_KEY);
+
+  if (isTokenExpired(token)) {
+    clearSession();
+    return { token: null, user: null };
+  }
+
+  const userStr = localStorage.getItem(USER_KEY);
+
+  if (!userStr || userStr === "null" || userStr === "undefined") {
+    return { token, user: null };
+  }
+
+  try {
+    return { token, user: JSON.parse(userStr) as User };
+  } catch {
+    return { token, user: null };
+  }
+};
+
+const initial = loadSession();
+
 export const useAuthStore = create<AuthState>((set) => ({
-  token: localStorage.getItem("token"),
-  user: (() => {
-    const userStr = localStorage.getItem("user");
-    if (userStr && userStr !== "null") {
-      try {
-        return JSON.parse(userStr);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  })(),
-  
+  token: initial.token,
+  user: initial.user,
+
   login: (token, user) => {
-    console.log("Logging in user:", user); // Debug log
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(user));
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
     set({ token, user });
   },
-  
+
   logout: () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    clearSession();
     set({ token: null, user: null });
   },
 }));

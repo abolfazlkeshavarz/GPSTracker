@@ -88,17 +88,31 @@ MQTT_CONTAINER   ?= gpstracker-mqtt
 # the scripts cannot rely on those to find Docker themselves.
 # Globs rather than $(LOCALAPPDATA): make cannot see that variable here, so
 # the per-user install path has to be discovered by wildcard.
-DOCKER_CANDIDATES := \
-    C:/Users/*/AppData/Local/Programs/DockerDesktop/resources/bin/docker.exe \
-    C:/PROGRA~1/Docker/Docker/resources/bin/docker.exe \
-    C:/ProgramData/DockerDesktop/version-bin/docker.exe
+DOCKER ?= docker
 
-DOCKER ?= $(strip $(firstword \
-    $(shell command -v docker 2>/dev/null) \
-    $(foreach d,$(DOCKER_CANDIDATES),$(wildcard $(d))) \
-    docker))
+# On Windows, try to find Docker if 'docker' isn't in PATH
+ifeq ($(OS),Windows_NT)
+    # Check if 'docker' works
+    DOCKER_CHECK := $(shell docker version 2>/dev/null)
+    ifeq ($(DOCKER_CHECK),)
+        # Try common installation paths
+        DOCKER_CANDIDATES := \
+            C:/PROGRA~1/Docker/Docker/resources/bin/docker.exe \
+            C:/PROGRA~2/Docker/Docker/resources/bin/docker.exe \
+            $(subst \,/,$(LOCALAPPDATA))/Programs/Docker/Docker/resources/bin/docker.exe \
+            $(subst \,/,$(LOCALAPPDATA))/Programs/DockerDesktop/resources/bin/docker.exe
+            
+        DOCKER := $(firstword $(foreach d,$(DOCKER_CANDIDATES),$(wildcard $(d))))
+        
+        # If found, use it, otherwise stick with 'docker'
+        ifeq ($(DOCKER),)
+            DOCKER := docker
+        endif
+    endif
+endif
 
 COMPOSE = $(DOCKER) compose
+export DOCKER
 
 # Everything below is needed by the scripts, the Go binaries, or both.
 export DB_HOST DB_PORT DB_USER DB_PASSWORD DB_NAME DB_SSLMODE
@@ -189,9 +203,17 @@ db-journey: ## Load a realistic day of driving with stops (TRACKER-002)
 
 db-reset: ## Drop, recreate, migrate and seed the database
 	@echo "Dropping database $(DB_NAME)..."
-	@$(DOCKER) exec -e PGPASSWORD=$(DB_PASSWORD) $(PG_CONTAINER) \
-		psql -U $(DB_USER) -c "DROP DATABASE IF EXISTS $(DB_NAME) WITH (FORCE)" >/dev/null
-	@$(MAKE) --no-print-directory db-seed
+	@"$(DOCKER)" exec -e PGPASSWORD=$(DB_PASSWORD) $(PG_CONTAINER) \
+		psql -U $(DB_USER) -c "DROP DATABASE IF EXISTS $(DB_NAME) WITH (FORCE)" 2>/dev/null || true
+	@echo "Creating database..."
+	@"$(DOCKER)" exec -e PGPASSWORD=$(DB_PASSWORD) $(PG_CONTAINER) \
+		psql -U $(DB_USER) -c "CREATE DATABASE $(DB_NAME)" 2>/dev/null || true
+	@echo "Applying schema..."
+	@"$(DOCKER)" exec -i -e PGPASSWORD=$(DB_PASSWORD) $(PG_CONTAINER) \
+		psql -U $(DB_USER) -v ON_ERROR_STOP=1 -d $(DB_NAME) < "$(SCRIPTS_DIR)/schema.sql"
+	@echo "Loading sample data..."
+	@"$(DOCKER)" exec -i -e PGPASSWORD=$(DB_PASSWORD) $(PG_CONTAINER) \
+		psql -U $(DB_USER) -v ON_ERROR_STOP=1 -d $(DB_NAME) < "$(SCRIPTS_DIR)/seed.sql"
 	@echo ""
 	@echo "Database reset. Log in with: admin / $(SEED_PASSWORD)"
 

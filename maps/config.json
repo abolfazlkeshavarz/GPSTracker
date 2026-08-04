@@ -1,0 +1,25 @@
+{
+  "options": {
+    "paths": {
+      "root": "/data",
+	  "fonts":"/data/fonts"
+
+    }
+  },
+
+  "data": {
+    "iran": {
+      "mbtiles": "iran-output.mbtiles"
+    }
+  },
+
+  "styles": {
+    "osm-bright": {
+      "style": "styles/osm-bright/style.json",
+	
+      "tilejson": {
+        "bounds": [44.0, 25.0, 64.0, 40.0]
+      }
+    }
+  }
+}

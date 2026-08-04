@@ -6,6 +6,10 @@ tracking-frontend/dist/
 tracking-backend/bin/
 tracking-backend/tmp/
 
+#maps
+maps/iran-output.mbtiles
+maps/styles/
+maps/fonts/
 # IDE
 .vscode/
 .idea/

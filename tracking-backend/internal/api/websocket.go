@@ -71,12 +71,29 @@ func readPump(conn *websocket.Conn, done chan<- struct{}) {
 	}
 }
 
+// closeGracefully sends a real close frame before hanging up.
+//
+// Without it the server just drops the TCP connection and every client sees
+// code 1006 ("abnormal closure"), which is indistinguishable from a crashed
+// server or a proxy timeout. Sending the code lets the client tell a normal
+// shutdown from a fault and decide whether reconnecting is worthwhile.
+func closeGracefully(conn *websocket.Conn, code int, reason string) {
+	_ = conn.WriteControl(
+		websocket.CloseMessage,
+		websocket.FormatCloseMessage(code, reason),
+		time.Now().Add(writeWait),
+	)
+}
+
 // streamDeviceUpdates relays Redis pubsub messages to conn for as long as the
 // connection is healthy. shouldSend decides which device payloads belong to
 // this subscriber.
 func streamDeviceUpdates(conn *websocket.Conn, shouldSend func(serial string) bool) {
 	pubsub := db.RedisClient.Subscribe(db.Ctx, "device_updates")
 	defer pubsub.Close()
+
+	// Whatever ends the loop below, the peer gets a proper close frame.
+	defer closeGracefully(conn, websocket.CloseNormalClosure, "")
 
 	ch := pubsub.Channel()
 

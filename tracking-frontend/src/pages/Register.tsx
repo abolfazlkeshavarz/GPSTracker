@@ -1,113 +1,130 @@
-// src/pages/Register.tsx
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import { AlertCircle, Eye, EyeOff, Lock, Phone, UserPlus } from "lucide-react";
+
 import { registerUser } from "../api/auth";
-import { useNavigate, Link } from "react-router-dom";
-import { useLanguage } from "../context/LanguageContext";
 import { useAuthStore } from "../store/authStore";
+import { useLanguage } from "../context/LanguageContext";
 import LanguageSwitcher from "../components/LanguageSwitcher";
-import { UserPlus, Phone, Lock, ArrowRight } from "lucide-react";
+import { Button, Input } from "../components/ui";
 
 export default function Register() {
   const navigate = useNavigate();
-  const { t, isRTL } = useLanguage();
+  const { t } = useLanguage();
   const auth = useAuthStore();
+
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleRegister = async () => {
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    // Matches the server's rule, so the failure is immediate rather than a
+    // round trip.
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await registerUser(phone, password);
-      
-      // Store the token and user data from registration response
-      // Assuming the API returns { token, user } similar to login
-      if (data.token && data.user) {
+      const data = await registerUser(phone.trim(), password);
+
+      if (data?.token && data?.user) {
         auth.login(data.token, data.user);
-        alert(t('register.success'));
-        navigate("/dashboard");
+        toast.success(t("register.success"));
+        navigate("/dashboard", { replace: true });
       } else {
-        // If registration doesn't auto-login, just show success and go to login
-        alert(t('register.success'));
-        navigate("/login");
+        toast.success(t("register.success"));
+        navigate("/login", { replace: true });
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || t('register.failed'));
+      setError(err?.response?.data?.error || t("register.failed"));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6 md:p-8">
-      <div className="bg-white w-full max-w-md sm:max-w-lg md:max-w-xl rounded-2xl shadow-2xl overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6">
-          <div className="flex justify-between items-start">
-            <div className="flex justify-center flex-1">
-              <div className="p-3 bg-white/20 rounded-full">
-                <UserPlus className="w-8 h-8 text-white" />
-              </div>
-            </div>
-            <LanguageSwitcher />
+    <div className="min-h-screen bg-page flex flex-col">
+      <div className="flex justify-end p-4">
+        <LanguageSwitcher />
+      </div>
+
+      <div className="flex-1 flex items-center justify-center px-4 pb-16">
+        <div className="w-full max-w-sm animate-fade-in">
+          <div className="text-center mb-8">
+            <span className="inline-grid place-items-center w-14 h-14 rounded-2xl bg-brand text-white shadow-lg mb-4">
+              <UserPlus className="w-7 h-7" />
+            </span>
+            <h1 className="text-display font-semibold text-content">{t("create.account.title")}</h1>
+            <p className="text-sm text-content-muted mt-1.5">{t("join.gps.tracker")}</p>
           </div>
-          <h1 className="text-3xl font-bold text-white text-center mt-4">{t('create.account.title')}</h1>
-          <p className="text-blue-100 text-center mt-2">{t('join.gps.tracker')}</p>
-        </div>
-        
-        <div className="p-8">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('phone.number')}</label>
-              <div className="relative">
-                <Phone className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400`} />
-                <input
-                  type="text"
-                  placeholder="09123456789"
-                  className={`w-full ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
+
+          <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-card shadow-sm p-6 space-y-4">
+            {error && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 p-3 rounded-control bg-status-critical-bg border border-status-critical/25 text-sm text-status-critical"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
               </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('password')}</label>
-              <div className="relative">
-                <Lock className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400`} />
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  className={`w-full ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-            
-            <button
-              onClick={handleRegister}
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center space-x-2 rtl:space-x-reverse"
-            >
-              {loading ? (
-                <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-              ) : (
-                <>
-                  <span>{t('create.account.btn')}</span>
-                  <ArrowRight className={`w-5 h-5 ${isRTL ? 'hidden' : ''}`} />
-                </>
-              )}
-            </button>
-          </div>
-          
-          <div className="mt-6 text-center">
-            <p className="text-gray-600">
-              {t('already.have.account')}{" "}
-              <Link to="/login" className="text-blue-600 font-semibold hover:text-blue-700">
-                {t('sign.in')}
-              </Link>
-            </p>
-          </div>
+            )}
+
+            <Input
+              name="phone"
+              label={t("phone.number")}
+              placeholder="09123456789"
+              autoComplete="username"
+              inputMode="tel"
+              required
+              autoFocus
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              leadingIcon={<Phone className="w-4 h-4" />}
+            />
+
+            <Input
+              name="password"
+              label={t("password")}
+              type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
+              autoComplete="new-password"
+              required
+              minLength={6}
+              hint="At least 6 characters."
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              leadingIcon={<Lock className="w-4 h-4" />}
+              trailingSlot={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="p-2 rounded-control text-content-muted hover:text-content-secondary"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              }
+            />
+
+            <Button type="submit" size="lg" fullWidth loading={loading} icon={<UserPlus className="w-4 h-4" />}>
+              {t("create.account.btn")}
+            </Button>
+          </form>
+
+          <p className="text-center text-sm text-content-muted mt-6">
+            {t("already.have.account")}{" "}
+            <Link to="/login" className="text-brand font-medium hover:underline">
+              {t("sign.in")}
+            </Link>
+          </p>
         </div>
       </div>
     </div>

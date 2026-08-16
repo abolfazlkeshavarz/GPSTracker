@@ -33,21 +33,21 @@ export default function DeviceModal({ isOpen, onClose, onSave }: DeviceModalProp
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-surface rounded-card p-6 max-w-md w-full mx-4">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
-            <Cpu className="w-6 h-6 text-green-600" />
+            <Cpu className="w-6 h-6 text-status-good" />
             <h3 className="text-xl font-semibold">Add New Device</h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-content-muted hover:text-content-secondary">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-content-secondary mb-1">
               Serial Number
             </label>
             <input
@@ -55,17 +55,17 @@ export default function DeviceModal({ isOpen, onClose, onSave }: DeviceModalProp
               required
               value={formData.serial}
               onChange={handleSerialChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 font-mono uppercase"
+              className="w-full px-3 py-2 border border-line rounded-control focus:ring-2 focus:ring-green-500 font-mono uppercase"
               placeholder="e.g., DEVICE001"
               autoFocus
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-content-muted mt-1">
               Unique identifier for the GPS device (automatically uppercase)
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-content-secondary mb-1">
               Device Secret Key
             </label>
             <div className="relative">
@@ -74,24 +74,24 @@ export default function DeviceModal({ isOpen, onClose, onSave }: DeviceModalProp
                 required
                 value={formData.device_secret}
                 onChange={(e) => setFormData({ ...formData, device_secret: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 font-mono"
+                className="w-full px-3 py-2 border border-line rounded-control focus:ring-2 focus:ring-green-500 font-mono"
                 placeholder="Enter secret key"
               />
               <button
                 type="button"
                 onClick={() => setShowSecret(!showSecret)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-content-muted"
               >
                 {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-content-muted mt-1">
               Secret key used to authenticate the device
             </p>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
-            <p className="text-xs text-blue-800">
+          <div className="bg-brand-subtle border border-brand/20 rounded-control p-3 mt-4">
+            <p className="text-xs text-brand-ink">
               <strong>Note:</strong> The device will be created in inactive state. 
               Users can activate it using the serial number and secret key.
             </p>
@@ -100,14 +100,14 @@ export default function DeviceModal({ isOpen, onClose, onSave }: DeviceModalProp
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition"
+              className="flex-1 bg-status-good text-white py-2 rounded-control hover:brightness-110 transition"
             >
               Create Device
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition"
+              className="flex-1 bg-surface-sunken text-content-secondary py-2 rounded-control hover:bg-surface-sunken transition"
             >
               Cancel
             </button>

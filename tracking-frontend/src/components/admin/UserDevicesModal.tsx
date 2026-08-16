@@ -34,14 +34,14 @@ export default function UserDevicesModal({ isOpen, onClose, userId, userPhone }:
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-surface rounded-card p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h3 className="text-xl font-semibold">User Devices</h3>
-            <p className="text-sm text-gray-500 mt-1">{userPhone}</p>
+            <p className="text-sm text-content-muted mt-1">{userPhone}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-content-muted hover:text-content-secondary">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -49,18 +49,18 @@ export default function UserDevicesModal({ isOpen, onClose, userId, userPhone }:
         {loading ? (
           <div className="text-center py-8">Loading...</div>
         ) : devices.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-content-muted">
             <Smartphone className="w-12 h-12 mx-auto mb-2 opacity-50" />
             <p>No devices found for this user</p>
           </div>
         ) : (
         <div className="space-y-3">
           {devices.map((device) => (
-            <div key={device.serial} className="border rounded-lg p-4 hover:bg-gray-50">
+            <div key={device.serial} className="border rounded-control p-4 hover:bg-surface-sunken">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-mono font-semibold text-lg">{device.serial}</p>
-                  <div className="flex flex-col gap-1 mt-2 text-sm text-gray-500">
+                  <div className="flex flex-col gap-1 mt-2 text-sm text-content-muted">
                     <div className="flex items-center gap-4">
                       <span className="flex items-center gap-1">
                         <Power className="w-3 h-3" />

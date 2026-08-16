@@ -4,16 +4,9 @@ import type { TrackPoint, TrackStop } from "../../api/devices";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
-// maplibre throws if this runs twice, which happens on HMR reloads.
-try {
-  maplibregl.setRTLTextPlugin("/rtl/mapbox-gl-rtl-text.js", true);
-} catch {
-  // Already registered.
-}
+import { ensureMapLibreReady, MAP_STYLE_URL } from "../../lib/maplibre";
 
-const MAP_STYLE_URL =
-  import.meta.env.VITE_MAP_STYLE_URL ||
-  "https://maps.abolfazl.fun/styles/osm-bright/style.json";
+ensureMapLibreReady();
 
 const ROUTE_SOURCE = "track-route";
 const ROUTE_LAYER = "track-route-line";

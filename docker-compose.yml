@@ -83,7 +83,7 @@ services:
     ports:
       - "127.0.0.1:${TILESERVER_PORT:-8081}:8080"
     volumes:
-      - ${MAPS_DIR:-D:/GPSTracker/maps}:/data:ro
+      - ${MAPS_DIR:-D:/Abolfazl Keshavarz/maps}:/data:ro
     healthcheck:
       # The image ships neither wget nor curl, so probe with the node runtime
       # that tileserver-gl itself runs on.

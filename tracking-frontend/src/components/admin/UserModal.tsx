@@ -57,20 +57,20 @@ export default function UserModal({ isOpen, onClose, onSave, user, mode }: UserM
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-surface rounded-card p-6 max-w-md w-full mx-4">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold">
             {mode === "create" ? "Create User" : "Edit User"}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-content-muted hover:text-content-secondary">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-content-secondary mb-1">
               Phone Number
             </label>
             <input
@@ -78,13 +78,13 @@ export default function UserModal({ isOpen, onClose, onSave, user, mode }: UserM
               required
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 py-2 border border-line rounded-control focus:border-brand"
               placeholder="09123456789"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-content-secondary mb-1">
               {mode === "create" ? "Password" : "New Password (optional)"}
             </label>
             <div className="relative">
@@ -92,14 +92,14 @@ export default function UserModal({ isOpen, onClose, onSave, user, mode }: UserM
                 type={showPassword ? "text" : "password"}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                className="w-full px-3 py-2 border border-line rounded-control focus:border-brand"
                 placeholder={mode === "create" ? "Enter password" : "Leave blank to keep current"}
                 required={mode === "create"}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-content-muted"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -107,13 +107,13 @@ export default function UserModal({ isOpen, onClose, onSave, user, mode }: UserM
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-content-secondary mb-1">
               Role
             </label>
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 py-2 border border-line rounded-control focus:border-brand"
             >
               <option value="user">User</option>
               <option value="admin">Admin</option>
@@ -123,14 +123,14 @@ export default function UserModal({ isOpen, onClose, onSave, user, mode }: UserM
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="flex-1 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition"
+              className="flex-1 bg-brand text-white py-2 rounded-control hover:bg-brand-hover transition"
             >
               {mode === "create" ? "Create" : "Save Changes"}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition"
+              className="flex-1 bg-surface-sunken text-content-secondary py-2 rounded-control hover:bg-surface-sunken transition"
             >
               Cancel
             </button>

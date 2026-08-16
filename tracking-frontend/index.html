@@ -16,7 +16,30 @@
     <link rel="manifest" href="/manifest.json" />
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#2a78d6" />
     <title>رد گَرد| GPS Tracking & Fleet Management</title>
+
+    <!--
+      Resolve the theme before first paint. Without this the page renders in
+      light, then flips to dark once React mounts - a visible white flash on
+      every load for dark-mode users.
+      Kept inline and dependency-free so it runs before the bundle arrives.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var dark =
+            stored === 'dark' ||
+            ((!stored || stored === 'system') &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        } catch (e) {
+          /* Private mode can throw on localStorage; light is a fine default. */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

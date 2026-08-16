@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuthStore } from "../store/authStore";
@@ -85,7 +86,7 @@ export default function AdminPanel() {
 
     } catch (err) {
       console.error("Failed to load data:", err);
-      alert("Failed to load data.");
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -98,7 +99,7 @@ export default function AdminPanel() {
       setAvailableUsers(response.data.users || []);
     } catch (err) {
       console.error("Failed to load users:", err);
-      alert("Failed to load users for assignment");
+      toast.error("Failed to load users");
     }
   };
 
@@ -109,13 +110,13 @@ export default function AdminPanel() {
     setAssigning(true);
     try {
       await api.post(`/admin/devices/${selectedDevice.serial}/assign`, { user_id: userId });
-      alert(`Device ${selectedDevice.serial} assigned successfully!`);
+      toast.success(`Device ${selectedDevice.serial} assigned successfully!`);
       setShowAssignModal(false);
       setSelectedDevice(null);
       loadData(currentPage, searchTerm); // Refresh the list
     } catch (err: any) {
       console.error("Assign error:", err);
-      alert(err.response?.data?.error || "Failed to assign device");
+      toast.error(err.response?.data?.error || "Failed to assign device");
     } finally {
       setAssigning(false);
     }
@@ -146,11 +147,11 @@ export default function AdminPanel() {
   const handleCreateDevice = async (deviceData: { serial: string; device_secret: string }) => {
     try {
       await api.post("/admin/devices", deviceData);
-      alert("Device created successfully!");
+      toast.success("Device created successfully");
       setShowDeviceModal(false);
       loadData(currentPage, searchTerm);
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to create device");
+      toast.error(err.response?.data?.error || "Failed to create device");
     }
   };
 
@@ -160,7 +161,7 @@ export default function AdminPanel() {
       setShowUserModal(false);
       loadData(currentPage, searchTerm);
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to create user");
+      toast.error(err.response?.data?.error || "Failed to create user");
     }
   };
 
@@ -170,7 +171,7 @@ export default function AdminPanel() {
       setShowUserModal(false);
       loadData(currentPage, searchTerm);
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to update user");
+      toast.error(err.response?.data?.error || "Failed to update user");
     }
   };
 
@@ -180,7 +181,7 @@ export default function AdminPanel() {
         await api.delete(`/admin/users/${userId}`);
         loadData(currentPage, searchTerm);
       } catch (err: any) {
-        alert(err.response?.data?.error || "Failed to delete user");
+        toast.error(err.response?.data?.error || "Failed to delete user");
       }
     }
   };
@@ -189,11 +190,11 @@ export default function AdminPanel() {
     if (confirm(`Deactivate device ${serial}? The user will lose access to this device.`)) {
       try {
         await api.post(`/admin/devices/${serial}/deactivate`);
-        alert("Device deactivated successfully!");
+        toast.success("Device deactivated");
         loadData(currentPage, searchTerm);
       } catch (err: any) {
         console.error("Deactivate error:", err);
-        alert(err.response?.data?.error || "Failed to deactivate device");
+        toast.error(err.response?.data?.error || "Failed to deactivate device");
       }
     }
   };
@@ -204,7 +205,7 @@ export default function AdminPanel() {
         await api.delete(`/admin/devices/${serial}`);
         loadData(currentPage, searchTerm);
       } catch (err: any) {
-        alert(err.response?.data?.error || "Failed to delete device");
+        toast.error(err.response?.data?.error || "Failed to delete device");
       }
     }
   };
@@ -217,10 +218,10 @@ export default function AdminPanel() {
           device_secret: secret,
           is_active: true
         });
-        alert("Device activated successfully!");
+        toast.success("Device activated");
         loadData(currentPage, searchTerm);
       } catch (err: any) {
-        alert(err.response?.data?.error || "Failed to activate device");
+        toast.error(err.response?.data?.error || "Failed to activate device");
       }
     }
   };
@@ -250,69 +251,69 @@ export default function AdminPanel() {
       <div className={`max-w-7xl mx-auto ${isRTL ? "text-right" : ""}`}>
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
+          <h1 className="text-3xl font-bold text-content flex items-center gap-2">
             <Shield className="w-8 h-8" />
             Admin Panel
           </h1>
-          <p className="text-gray-500 mt-1">Complete system management</p>
+          <p className="text-content-muted mt-1">Complete system management</p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow p-4">
+          <div className="bg-surface rounded-control shadow-sm p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Total Users</p>
-                <p className="text-2xl font-bold text-gray-800">{stats.total_users || 0}</p>
+                <p className="text-content-muted text-sm">Total Users</p>
+                <p className="text-2xl font-bold text-content">{stats.total_users || 0}</p>
               </div>
-              <Users className="w-8 h-8 text-blue-500" />
+              <Users className="w-8 h-8 text-series-1" />
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow p-4">
+          <div className="bg-surface rounded-control shadow-sm p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Total Devices</p>
-                <p className="text-2xl font-bold text-gray-800">{stats.total_devices || 0}</p>
+                <p className="text-content-muted text-sm">Total Devices</p>
+                <p className="text-2xl font-bold text-content">{stats.total_devices || 0}</p>
               </div>
-              <Smartphone className="w-8 h-8 text-green-500" />
+              <Smartphone className="w-8 h-8 text-series-3" />
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow p-4">
+          <div className="bg-surface rounded-control shadow-sm p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Active Devices</p>
-                <p className="text-2xl font-bold text-green-600">{stats.active_devices || 0}</p>
+                <p className="text-content-muted text-sm">Active Devices</p>
+                <p className="text-2xl font-bold text-status-good">{stats.active_devices || 0}</p>
               </div>
-              <Activity className="w-8 h-8 text-green-500" />
+              <Activity className="w-8 h-8 text-series-3" />
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow p-4">
+          <div className="bg-surface rounded-control shadow-sm p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Total Locations</p>
-                <p className="text-2xl font-bold text-gray-800">{stats.total_locations?.toLocaleString() || 0}</p>
+                <p className="text-content-muted text-sm">Total Locations</p>
+                <p className="text-2xl font-bold text-content">{stats.total_locations?.toLocaleString() || 0}</p>
               </div>
-              <Eye className="w-8 h-8 text-purple-500" />
+              <Eye className="w-8 h-8 text-series-6" />
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow p-4">
+          <div className="bg-surface rounded-control shadow-sm p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Recent Activations</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.recent_activations || 0}</p>
+                <p className="text-content-muted text-sm">Recent Activations</p>
+                <p className="text-2xl font-bold text-series-2">{stats.recent_activations || 0}</p>
               </div>
-              <Calendar className="w-8 h-8 text-orange-500" />
+              <Calendar className="w-8 h-8 text-series-2" />
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-          <div className="border-b border-gray-200">
+        <div className="bg-surface rounded-card shadow-sm overflow-hidden">
+          <div className="border-b border-line">
             <nav className="flex -mb-px">
               {[
                 { id: "users", label: "Users", icon: Users },
@@ -328,8 +329,8 @@ export default function AdminPanel() {
                   }}
                   className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-all ${
                     activeTab === tab.id
-                      ? "border-purple-600 text-purple-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      ? "border-brand text-brand"
+                      : "border-transparent text-content-muted hover:text-content-secondary hover:border-line"
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -344,7 +345,7 @@ export default function AdminPanel() {
             {(activeTab === "users" || activeTab === "devices") && (
               <div className="flex justify-between items-center mb-6 gap-4">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-content-muted" />
                   <input
                     type="text"
                     placeholder={`Search ${activeTab} by name or ID...`}
@@ -355,7 +356,7 @@ export default function AdminPanel() {
                       setSearchTerm(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full pl-10 pr-4 py-2 border border-line rounded-control focus:border-brand"
                   />
                 </div>
                 {activeTab === "users" && (
@@ -365,7 +366,7 @@ export default function AdminPanel() {
                       setSelectedUser(null);
                       setShowUserModal(true);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                    className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-control hover:bg-brand-hover"
                   >
                     <Plus className="w-4 h-4" />
                     Add User
@@ -374,7 +375,7 @@ export default function AdminPanel() {
                 {activeTab === "devices" && (
                   <button
                     onClick={() => setShowDeviceModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    className="flex items-center gap-2 px-4 py-2 bg-status-good text-white rounded-control hover:brightness-110"
                   >
                     <Plus className="w-4 h-4" />
                     Add Device
@@ -382,7 +383,7 @@ export default function AdminPanel() {
                 )}
                 <button
                   onClick={handleRefresh}
-                  className="p-2 text-gray-500 hover:text-gray-700"
+                  className="p-2 text-content-muted hover:text-content-secondary"
                   title="Refresh"
                 >
                   <RefreshCw className="w-5 h-5" />
@@ -393,8 +394,8 @@ export default function AdminPanel() {
             {/* Loading State */}
             {loading && (
               <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-500 border-t-transparent"></div>
-                <p className="mt-2 text-gray-500">Loading...</p>
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand border-t-transparent"></div>
+                <p className="mt-2 text-content-muted">Loading...</p>
               </div>
             )}
 
@@ -402,19 +403,19 @@ export default function AdminPanel() {
             {!loading && activeTab === "users" && (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-surface-sunken">
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">ID</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Phone</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Role</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Joined</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Actions</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">ID</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Phone</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Role</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Joined</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-line">
                     {users.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan={5} className="px-4 py-8 text-center text-content-muted">
                           No users found
                         </td>
                       </tr>
@@ -422,10 +423,10 @@ export default function AdminPanel() {
                       users.map((user) => {
                         const joined = formatDateTime(user.created_at);
                         return (
-                          <tr key={user.id} className="hover:bg-gray-50">
+                          <tr key={user.id} className="hover:bg-surface-sunken">
                             <td className="px-4 py-3 text-sm">{user.id}</td>
                             <td 
-                              className="px-4 py-3 text-sm font-mono text-blue-600 hover:text-blue-800 cursor-pointer"
+                              className="px-4 py-3 text-sm font-mono text-brand hover:text-brand-hover cursor-pointer"
                               onClick={() => {
                                 setSelectedUser(user);
                                 setShowDevicesModal(true);
@@ -436,8 +437,8 @@ export default function AdminPanel() {
                             <td className="px-4 py-3">
                               <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
                                 user.role === "admin" 
-                                  ? "bg-purple-100 text-purple-700" 
-                                  : "bg-gray-100 text-gray-700"
+                                  ? "bg-series-6/10 text-series-6" 
+                                  : "bg-surface-sunken text-content-secondary"
                               }`}>
                                 {user.role}
                               </span>
@@ -446,10 +447,10 @@ export default function AdminPanel() {
                               {joined ? (
                                 <div className="flex flex-col">
                                   <span>{joined.date}</span>
-                                  <span className="text-xs text-gray-500">{joined.time}</span>
+                                  <span className="text-xs text-content-muted">{joined.time}</span>
                                 </div>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-content-muted">-</span>
                               )}
                             </td>
                             <td className="px-4 py-3">
@@ -460,14 +461,14 @@ export default function AdminPanel() {
                                     setModalMode("edit");
                                     setShowUserModal(true);
                                   }}
-                                  className="text-blue-600 hover:text-blue-800"
+                                  className="text-brand hover:text-brand-hover"
                                   title="Edit"
                                 >
                                   <Edit className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteUser(user.id, user.phone)}
-                                  className="text-red-600 hover:text-red-800"
+                                  className="text-status-critical hover:brightness-110"
                                   title="Delete"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -477,7 +478,7 @@ export default function AdminPanel() {
                                     setSelectedUser(user);
                                     setShowDevicesModal(true);
                                   }}
-                                  className="text-green-600 hover:text-green-800"
+                                  className="text-status-good hover:brightness-110"
                                   title="View Devices"
                                 >
                                   <Smartphone className="w-4 h-4" />
@@ -497,7 +498,7 @@ export default function AdminPanel() {
                     <button
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="p-2 border rounded-lg disabled:opacity-50"
+                      className="p-2 border rounded-control disabled:opacity-50"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
@@ -507,7 +508,7 @@ export default function AdminPanel() {
                     <button
                       onClick={() => setCurrentPage(p => p + 1)}
                       disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
-                      className="p-2 border rounded-lg disabled:opacity-50"
+                      className="p-2 border rounded-control disabled:opacity-50"
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>
@@ -520,21 +521,21 @@ export default function AdminPanel() {
             {!loading && activeTab === "devices" && (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-surface-sunken">
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Serial</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Secret</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">User</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Created At</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Last Modified</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Actions</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Serial</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Secret</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">User</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Created At</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Last Modified</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-content-secondary">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-line">
                     {devices.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan={7} className="px-4 py-8 text-center text-content-muted">
                           No devices found. Click "Add Device" to create one.
                         </td>
                       </tr>
@@ -543,43 +544,43 @@ export default function AdminPanel() {
                         const created = formatDateTime(device.created_at);
                         const modified = formatDateTime(device.last_modified_at);
                         return (
-                          <tr key={device.serial} className="hover:bg-gray-50">
+                          <tr key={device.serial} className="hover:bg-surface-sunken">
                             <td className="px-4 py-3 font-mono text-sm">{device.serial}</td>
                             <td className="px-4 py-3 font-mono text-sm">{device.device_secret}</td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
                                 device.is_active 
-                                  ? "bg-green-100 text-green-700" 
-                                  : "bg-yellow-100 text-yellow-700"
+                                  ? "bg-status-good-bg text-status-good" 
+                                  : "bg-status-warning-bg text-status-warning"
                               }`}>
                                 {device.is_active ? "Active" : "Inactive"}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-sm">
                               {device.user_phone ? (
-                                <span className="text-blue-600">{device.user_phone}</span>
+                                <span className="text-brand">{device.user_phone}</span>
                               ) : (
-                                <span className="text-gray-400">Not assigned</span>
+                                <span className="text-content-muted">Not assigned</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-sm">
                               {created ? (
                                 <div className="flex flex-col">
                                   <span>{created.date}</span>
-                                  <span className="text-xs text-gray-500">{created.time}</span>
+                                  <span className="text-xs text-content-muted">{created.time}</span>
                                 </div>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-content-muted">-</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-sm">
                               {modified ? (
                                 <div className="flex flex-col">
                                   <span>{modified.date}</span>
-                                  <span className="text-xs text-gray-500">{modified.time}</span>
+                                  <span className="text-xs text-content-muted">{modified.time}</span>
                                 </div>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-content-muted">-</span>
                               )}
                             </td>
                             <td className="px-4 py-3">
@@ -591,7 +592,7 @@ export default function AdminPanel() {
                                       loadUsersForAssignment();
                                       setShowAssignModal(true);
                                     }}
-                                    className="text-blue-600 hover:text-blue-800"
+                                    className="text-brand hover:text-brand-hover"
                                     title="Assign to User"
                                   >
                                     <UserPlus className="w-4 h-4" />
@@ -600,7 +601,7 @@ export default function AdminPanel() {
                                 {!device.is_active && device.user_id && (
                                   <button
                                     onClick={() => handleActivateDevice(device.serial, device.device_secret)}
-                                    className="text-green-600 hover:text-green-800"
+                                    className="text-status-good hover:brightness-110"
                                     title="Activate"
                                   >
                                     <Activity className="w-4 h-4" />
@@ -609,7 +610,7 @@ export default function AdminPanel() {
                                 {device.is_active && (
                                   <button
                                     onClick={() => handleDeactivateDevice(device.serial)}
-                                    className="text-orange-600 hover:text-orange-800"
+                                    className="text-status-serious hover:brightness-110"
                                     title="Deactivate"
                                   >
                                     <Power className="w-4 h-4" />
@@ -617,7 +618,7 @@ export default function AdminPanel() {
                                 )}
                                 <button
                                   onClick={() => handleDeleteDevice(device.serial)}
-                                  className="text-red-600 hover:text-red-800"
+                                  className="text-status-critical hover:brightness-110"
                                   title="Delete"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -637,31 +638,31 @@ export default function AdminPanel() {
             {!loading && activeTab === "logs" && (
               <div className="space-y-3">
                 {logs.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-content-muted">
                     No logs found
                   </div>
                 ) : (
                   logs.map((log) => (
-                    <div key={log.id} className="bg-gray-50 rounded-lg p-4">
+                    <div key={log.id} className="bg-surface-sunken rounded-control p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-gray-500">#{log.id}</span>
-                          <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                          <span className="font-mono text-xs text-content-muted">#{log.id}</span>
+                          <span className="px-2 py-1 bg-series-1/10 text-brand-ink text-xs rounded-full">
                             {log.action}
                           </span>
-                          <span className="text-sm text-gray-600">
+                          <span className="text-sm text-content-secondary">
                             {log.entity_type}: {log.entity_id}
                           </span>
                         </div>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-content-muted">
                           {new Date(log.created_at).toLocaleString()}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-content-muted">
                         User: {log.user_phone || "System"} | IP: {log.ip_address}
                       </div>
                       {log.details && (
-                        <div className="mt-2 text-xs text-gray-400 font-mono">
+                        <div className="mt-2 text-xs text-content-muted font-mono">
                           {typeof log.details === 'object' ? JSON.stringify(log.details) : log.details}
                         </div>
                       )}
@@ -698,19 +699,19 @@ export default function AdminPanel() {
 
       {/* Assign Device Modal */}
       {showAssignModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface rounded-card p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h3 className="text-xl font-semibold">Assign Device to User</h3>
-                <p className="text-sm text-gray-500 mt-1">Device: {selectedDevice?.serial}</p>
+                <p className="text-sm text-content-muted mt-1">Device: {selectedDevice?.serial}</p>
               </div>
               <button 
                 onClick={() => {
                   setShowAssignModal(false);
                   setSelectedDevice(null);
                 }} 
-                className="text-gray-400 hover:text-gray-600"
+                className="text-content-muted hover:text-content-secondary"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -718,12 +719,12 @@ export default function AdminPanel() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-content-secondary mb-1">
                   Select User
                 </label>
                 <select
                   onChange={(e) => handleAssignDevice(parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 border border-line rounded-control focus:border-brand"
                   defaultValue=""
                   disabled={assigning}
                 >
@@ -736,8 +737,8 @@ export default function AdminPanel() {
                 </select>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-xs text-blue-800">
+              <div className="bg-brand-subtle border border-brand/20 rounded-control p-3">
+                <p className="text-xs text-brand-ink">
                   <strong>Note:</strong> Assigning a device to a user will automatically activate it.
                   The user will be able to see this device in their dashboard.
                 </p>
@@ -745,8 +746,8 @@ export default function AdminPanel() {
 
               {assigning && (
                 <div className="text-center py-2">
-                  <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-purple-500 border-t-transparent"></div>
-                  <span className="ml-2 text-sm text-gray-600">Assigning...</span>
+                  <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-brand border-t-transparent"></div>
+                  <span className="ml-2 text-sm text-content-secondary">Assigning...</span>
                 </div>
               )}
 
@@ -755,7 +756,7 @@ export default function AdminPanel() {
                   setShowAssignModal(false);
                   setSelectedDevice(null);
                 }}
-                className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition"
+                className="w-full bg-surface-sunken text-content-secondary py-2 rounded-control hover:bg-surface-sunken transition"
                 disabled={assigning}
               >
                 Cancel

@@ -1,4 +1,6 @@
 /* src/index.css */
+@import './styles/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -50,11 +52,79 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Prevents the layout shifting sideways when a page grows tall enough to
+     add a scrollbar - very visible on the dashboard as cards load. */
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   padding: 0;
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #f3f4f6;
+  font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif;
+  background: rgb(var(--page));
+  color: rgb(var(--text-primary));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Theme changes should be instant, not a slow colour crossfade on everything.
+   Only the shell surfaces animate, and not for people who opt out. */
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* One visible focus style everywhere, instead of each control inventing one. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid rgb(var(--ring));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Native controls (date pickers, selects) must follow the theme too. */
+input,
+select,
+textarea {
+  color-scheme: inherit;
+}
+
+::selection {
+  background: rgb(var(--brand) / 0.22);
+}
+
+/* Scrollbars: default Windows ones are jarring against a dark surface. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border-strong)) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--border-strong));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .font-vazir {

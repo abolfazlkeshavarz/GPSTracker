@@ -1,0 +1,162 @@
+/*
+ * Design tokens.
+ *
+ * Colours are stored as raw "R G B" channel triplets so Tailwind can apply
+ * opacity to them (`bg-surface/60`). Every token is declared for both themes:
+ * the media query follows the OS setting, and the [data-theme] scopes let the
+ * in-app toggle win in either direction.
+ *
+ * The data-mark colours (series/*, status/*) are not free choices — they come
+ * from a palette validated for colour-vision deficiency against these exact
+ * surfaces. Do not hand-edit them; re-run the validator if they must change.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* --- surfaces ------------------------------------------------------- */
+  --page: 246 247 249;
+  --surface: 255 255 255;
+  --surface-raised: 255 255 255;
+  --surface-sunken: 242 244 247;
+  --surface-inverse: 16 24 40;
+
+  /* --- ink ------------------------------------------------------------ */
+  --text-primary: 16 24 40;
+  --text-secondary: 71 84 103;
+  --text-muted: 102 112 133;      /* 4.9:1 on white - safe for small text */
+  --text-inverse: 255 255 255;
+
+  /* --- lines ---------------------------------------------------------- */
+  --border: 228 231 236;
+  --border-strong: 208 213 221;
+  --ring: 42 120 214;
+
+  /* --- brand ---------------------------------------------------------- */
+  --brand: 42 120 214;
+  --brand-hover: 37 106 191;
+  --brand-subtle: 234 242 253;
+  --brand-ink: 24 79 149;
+
+  /* --- data series (validated categorical order) ---------------------- */
+  --series-1: 42 120 214;    /* blue    */
+  --series-2: 235 104 52;    /* orange  */
+  --series-3: 27 175 122;    /* aqua    */
+  --series-4: 237 161 0;     /* yellow  */
+  --series-5: 232 123 164;   /* magenta */
+  --series-6: 74 58 167;     /* violet  */
+
+  /* --- status (always paired with an icon + label, never colour alone) - */
+  --status-good: 12 163 12;
+  --status-warning: 250 178 25;
+  --status-serious: 236 131 90;
+  --status-critical: 208 59 59;
+
+  /* Tinted backgrounds for status pills. */
+  --status-good-bg: 232 248 232;
+  --status-warning-bg: 254 246 227;
+  --status-serious-bg: 253 238 231;
+  --status-critical-bg: 251 233 233;
+
+  /* --- elevation ------------------------------------------------------ */
+  --shadow-sm: 0 1px 2px 0 rgb(16 24 40 / 0.05);
+  --shadow-md: 0 4px 8px -2px rgb(16 24 40 / 0.10), 0 2px 4px -2px rgb(16 24 40 / 0.06);
+  --shadow-lg: 0 12px 16px -4px rgb(16 24 40 / 0.08), 0 4px 6px -2px rgb(16 24 40 / 0.03);
+  --shadow-xl: 0 20px 24px -4px rgb(16 24 40 / 0.08), 0 8px 8px -4px rgb(16 24 40 / 0.03);
+}
+
+/* Dark theme. Declared twice on purpose - see the file header. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --page: 12 13 16;
+    --surface: 23 24 28;
+    --surface-raised: 31 33 39;
+    --surface-sunken: 18 19 23;
+    --surface-inverse: 246 247 249;
+
+    --text-primary: 255 255 255;
+    --text-secondary: 203 210 220;
+    --text-muted: 139 148 163;
+    --text-inverse: 16 24 40;
+
+    --border: 40 43 51;
+    --border-strong: 57 61 71;
+    --ring: 57 135 229;
+
+    --brand: 57 135 229;
+    --brand-hover: 109 167 236;
+    --brand-subtle: 22 40 64;
+    --brand-ink: 158 197 244;
+
+    /* Same eight hues, stepped for the dark surface - not an auto-flip. */
+    --series-1: 57 135 229;
+    --series-2: 217 89 38;
+    --series-3: 25 158 112;
+    --series-4: 201 133 0;
+    --series-5: 213 81 129;
+    --series-6: 144 133 233;
+
+    --status-good: 12 163 12;
+    --status-warning: 250 178 25;
+    --status-serious: 236 131 90;
+    --status-critical: 208 59 59;
+
+    --status-good-bg: 16 44 16;
+    --status-warning-bg: 51 40 12;
+    --status-serious-bg: 51 32 23;
+    --status-critical-bg: 51 21 21;
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.30);
+    --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.40), 0 2px 4px -2px rgb(0 0 0 / 0.30);
+    --shadow-lg: 0 12px 16px -4px rgb(0 0 0 / 0.45), 0 4px 6px -2px rgb(0 0 0 / 0.30);
+    --shadow-xl: 0 20px 24px -4px rgb(0 0 0 / 0.50), 0 8px 8px -4px rgb(0 0 0 / 0.30);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page: 12 13 16;
+  --surface: 23 24 28;
+  --surface-raised: 31 33 39;
+  --surface-sunken: 18 19 23;
+  --surface-inverse: 246 247 249;
+
+  --text-primary: 255 255 255;
+  --text-secondary: 203 210 220;
+  --text-muted: 139 148 163;
+  --text-inverse: 16 24 40;
+
+  --border: 40 43 51;
+  --border-strong: 57 61 71;
+  --ring: 57 135 229;
+
+  --brand: 57 135 229;
+  --brand-hover: 109 167 236;
+  --brand-subtle: 22 40 64;
+  --brand-ink: 158 197 244;
+
+  --series-1: 57 135 229;
+  --series-2: 217 89 38;
+  --series-3: 25 158 112;
+  --series-4: 201 133 0;
+  --series-5: 213 81 129;
+  --series-6: 144 133 233;
+
+  --status-good: 12 163 12;
+  --status-warning: 250 178 25;
+  --status-serious: 236 131 90;
+  --status-critical: 208 59 59;
+
+  --status-good-bg: 16 44 16;
+  --status-warning-bg: 51 40 12;
+  --status-serious-bg: 51 32 23;
+  --status-critical-bg: 51 21 21;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.30);
+  --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.40), 0 2px 4px -2px rgb(0 0 0 / 0.30);
+  --shadow-lg: 0 12px 16px -4px rgb(0 0 0 / 0.45), 0 4px 6px -2px rgb(0 0 0 / 0.30);
+  --shadow-xl: 0 20px 24px -4px rgb(0 0 0 / 0.50), 0 8px 8px -4px rgb(0 0 0 / 0.30);
+}

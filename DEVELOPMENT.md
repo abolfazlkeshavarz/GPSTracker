@@ -26,7 +26,7 @@ Verify everything at once:
 
 ```bash
 make health   # is every dependency up?
-make smoke    # 36 end-to-end API assertions
+make smoke    # ~49 end-to-end API assertions
 ```
 
 ---
@@ -183,6 +183,83 @@ drift alone — there is a regression test for exactly this.
 `make db-journey` loads a day of driving for `TRACKER-002` with three real
 stops plus a 90-second traffic-light pause that must *not* be reported.
 
+## Interface
+
+### Design tokens
+
+Colours, shadows and radii live in `src/styles/tokens.css` as `R G B` triplets,
+surfaced through `tailwind.config.js` as semantic names — `bg-surface`,
+`text-content-muted`, `border-line`, `text-status-critical`. Pages should use
+those, not raw palette classes like `bg-gray-100`, or dark mode silently breaks.
+
+Dark mode is driven by `data-theme` on `<html>`. Every token is declared under
+both a `prefers-color-scheme` media query and a `[data-theme]` selector so the
+in-app toggle can override the OS in either direction. An inline script in
+`index.html` resolves the theme before first paint — without it the page renders
+light and then flips, which is a visible flash on every load.
+
+### Data-mark colours are not free choices
+
+`--series-*` and `--status-*` come from a palette checked for colour-vision
+deficiency against these exact surfaces (worst adjacent pair ΔE 9.1 light /
+8.4 dark; ≥8 is the target). Re-run the validator if they ever change.
+
+Two rules follow from that, and both are load-bearing:
+
+- **Status is never colour alone.** `Badge` requires children and `Meter` takes
+  a label for this reason — several status hues are indistinguishable under
+  common CVD, and two sit below 3:1 contrast on the light surface. The words
+  are the accessible channel.
+- **A single number is a tile, not a chart.** The KPI row uses `StatTile`; one
+  value with no series has nothing to plot.
+
+### Primitives
+
+`src/components/ui` holds `Button`, `Card`, `Badge`, `StatTile`, `Input`,
+`Skeleton`, `EmptyState`, `Meter`, `StatusDot`. Reach for these before writing
+new Tailwind strings.
+
+## Realtime connection
+
+One WebSocket for the whole app, owned by `RealtimeProvider` above the router.
+Pages subscribe with `useDeviceUpdates(...)`; they never open a socket.
+
+This matters because the socket used to live inside `useWebSocket()`, called
+from `Dashboard` and `DeviceDetails` — which tied the connection's lifetime to a
+*page component*. It was torn down and rebuilt by things unrelated to the
+network:
+
+- navigating between the dashboard and a device
+- `ResponsiveLayout` swapping the desktop and mobile layouts at 768px, which
+  unmounted the whole subtree
+- StrictMode's double mount in development
+
+Measured against the server log, three client-side navigations now produce
+**zero** new connections.
+
+The provider also handles what a bare socket does not: exponential backoff with
+jitter, reconnect on `visibilitychange` (a socket suspended by a background tab
+often returns dead without ever firing `onclose`), `online`/`offline` events, and
+a distinct `unauthorized` state that stops retrying instead of hammering the
+server with a token that will never be valid.
+
+Server side, `streamDeviceUpdates` now sends a real close frame. Previously it
+dropped the TCP connection, so every client saw code 1006 — indistinguishable
+from a crash or a proxy timeout.
+
+### Diagnosing a dropped connection
+
+`cmd/wsprobe` connects and reports open time, every frame, and the close code:
+
+```bash
+cd tracking-backend
+go run ./cmd/wsprobe -duration 90s                      # straight to the API
+go run ./cmd/wsprobe -api http://127.0.0.1:5173 -duration 90s   # via Vite
+```
+
+Run it against both to tell a backend problem from a proxy problem. The browser
+cannot: it reports 1006 for every abnormal close.
+
 ## Device telemetry
 
 The firmware sends more than it used to. Fields added in
@@ -217,10 +294,6 @@ The old firmware remains compatible — the new fields are simply absent.
   to Postgres, it returns `gps_bars: 0, gprs_bars: 0` instead of recomputing
   them from satellites/CSQ. `calculateGPSBars`/`calculateGPRSBars` in the mqtt
   package would need to move somewhere both paths can reach.
-- **Dashboard "online" is inferred wrong.** It marks a device online whenever a
-  cached location exists, so a device silent for six hours still shows online.
-  `GET /devices/:serial/status` already answers this properly via a 60-second
-  Redis TTL, but the dashboard never calls it.
 - No geofencing, trip segmentation, alerts, or reporting.
 
 ### Engineering gaps
@@ -231,8 +304,8 @@ The old firmware remains compatible — the new fields are simply absent.
 - **No offline buffering in the firmware.** Points are dropped when MQTT is
   unreachable (tunnels, dead zones), leaving holes in the history. Fixing it
   means a RAM or SPIFFS ring buffer that drains on reconnect.
-- **41 ESLint errors**, nearly all `no-explicit-any`. Pre-existing; the API
-  layer and page components are untyped.
+- **ESLint `no-explicit-any` errors** across the API layer and page components.
+  Pre-existing; the payload types are largely untyped.
 - **A 1.4 MB JS bundle**, unsplit. Both `mapbox-gl` and `maplibre-gl` are
   dependencies, plus `leaflet` and `react-leaflet`, but only `maplibre-gl` is
   used. Dropping the other three is easy dead weight to shed.

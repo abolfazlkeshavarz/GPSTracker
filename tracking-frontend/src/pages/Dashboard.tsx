@@ -22,7 +22,6 @@ import {
   Button,
   Card,
   EmptyState,
-  PageHeading,
   Skeleton,
   StatTile,
   StatusDot,
@@ -129,18 +128,25 @@ export default function Dashboard() {
 
   return (
     <ResponsiveLayout>
-      <PageHeading
-        title={t("dashboard.overview")}
-        subtitle={t("real.time.monitoring")}
-        actions={
-          <Link to="/activate">
+      {/* Hero band. The hairline grid is the one "technical" texture in the
+          system and is confined here, where it frames rather than distracts. */}
+      <div className="relative -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-6 px-4 sm:px-6 pt-6 pb-5 border-b border-line overflow-hidden">
+        <div className="absolute inset-0 bg-grid bg-grid-fade pointer-events-none" aria-hidden />
+
+        <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-display text-content">{t("dashboard.overview")}</h1>
+            <p className="text-sm text-content-muted mt-1">{t("real.time.monitoring")}</p>
+          </div>
+
+          <Link to="/activate" className="shrink-0">
             <Button icon={<PlusCircle className="w-4 h-4" />}>{t("add.new.device")}</Button>
           </Link>
-        }
-      />
+        </div>
+      </div>
 
       {/* KPI row. One number each — a tile reads faster than a one-bar chart. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 stagger">
         <StatTile
           label={t("total.devices")}
           value={stats.total}
@@ -154,6 +160,7 @@ export default function Dashboard() {
           icon={<Wifi className="w-[18px] h-[18px]" />}
           accent="status-good"
           loading={loading}
+          live={stats.live > 0}
           hint={`reporting within ${LIVE_WINDOW_MS / 1000}s`}
         />
         <StatTile
@@ -172,11 +179,14 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold text-content">{t("your.devices")}</h2>
+      <div className="flex items-center justify-between mb-3 min-h-[1.75rem]">
+        <h2 className="text-title font-semibold text-content">{t("your.devices")}</h2>
+
+        {/* One meaningful sentence, not a bare number: a live region that
+            announces "2 of 3 devices reporting" instead of "2". */}
         {!loading && rows.length > 0 && (
-          <span className="text-xs text-content-muted">
-            {stats.live} / {stats.total} live
+          <span role="status" aria-atomic="true" className="text-xs text-content-muted tnum">
+            {stats.live} of {stats.total} devices reporting
           </span>
         )}
       </div>
@@ -209,7 +219,7 @@ export default function Dashboard() {
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger">
           {rows.map((device) => (
             <DeviceCard key={device.serial} device={device} t={t} />
           ))}
@@ -228,8 +238,14 @@ function DeviceCard({ device, t }: { device: DeviceRow & { live: boolean }; t: (
   const sats = loc?.sat ?? loc?.satellites ?? null;
 
   return (
-    <Link to={`/device/${device.serial}`} className="group block">
-      <Card className="h-full transition-all group-hover:shadow-md group-hover:border-line-strong">
+    <Link to={`/device/${device.serial}`} className="group block cursor-pointer">
+      <Card
+        className={cx(
+          "h-full transition-all duration-200",
+          "group-hover:-translate-y-0.5 group-hover:shadow-lg group-hover:border-brand/40",
+          device.live && "shadow-glow-good"
+        )}
+      >
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
             <p className="font-semibold text-content font-mono text-sm truncate">{device.serial}</p>
@@ -297,7 +313,7 @@ function Metric({
         {icon}
         <span className="text-xs truncate">{label}</span>
       </div>
-      <p className={cx("text-sm font-semibold truncate", toneClass)}>{value}</p>
+      <p className={cx("text-sm font-semibold truncate tnum", toneClass)}>{value}</p>
     </div>
   );
 }

@@ -51,6 +51,9 @@ func init() {
 		{"list-devices", "List devices and their owners", cmdListDevices, true},
 		{"stats", "Show row counts across the database", cmdStats, true},
 		{"hash", "Print a bcrypt hash for a password", cmdHash, false},
+		{"verify-chain", "Replay a device hash chain and report tampering", cmdVerifyChain, true},
+		{"cert-keygen", "Generate the Ed25519 certificate signing key", cmdCertKeygen, false},
+		{"cert-verify", "Verify a trip certificate file offline", cmdCertVerify, false},
 	}
 }
 

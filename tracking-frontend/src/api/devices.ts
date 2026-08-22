@@ -37,7 +37,32 @@ export interface TrackPoint {
   csq: number;
   battery: number;
   ignition?: boolean;
+  heading?: number;
+  /** True when the point was buffered through a coverage gap and replayed. */
+  is_backfill?: boolean;
   recorded_at: string;
+}
+
+export interface ChainVerification {
+  valid: boolean;
+  record_count: number;
+  hmac_count: number;
+  legacy_count: number;
+  backfill_count: number;
+  unprotected_count: number;
+  head_hash: string;
+  first_broken_id?: number;
+  detail?: string;
+  checked_at: string;
+}
+
+export interface VerifyResponse {
+  device: string;
+  from: string;
+  to: string;
+  verification: ChainVerification;
+  anchored_to_start: boolean;
+  note: string;
 }
 
 export interface TrackStop {
@@ -99,6 +124,28 @@ export const getTrack = async (
 
   const response = await api.get(`/devices/${serial}/track?${params.toString()}`);
   return response.data;
+};
+
+/** Replays the tamper-evident hash chain for a date range. */
+export const verifyChain = async (
+  serial: string,
+  from: string,
+  to: string
+): Promise<VerifyResponse> => {
+  const params = new URLSearchParams({ from, to });
+  const response = await api.get(`/devices/${serial}/verify?${params.toString()}`);
+  return response.data;
+};
+
+/**
+ * URL of the signed trip certificate.
+ *
+ * Returned as a URL rather than fetched, so the browser downloads it directly
+ * — the document is meant to be kept and handed to someone else.
+ */
+export const certificateUrl = (serial: string, from: string, to: string): string => {
+  const params = new URLSearchParams({ from, to, download: "1" });
+  return `/api/devices/${serial}/certificate?${params.toString()}`;
 };
 
 export const activateDevice = async (serial: string, secret: string) => {

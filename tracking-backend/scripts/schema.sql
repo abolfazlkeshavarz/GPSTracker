@@ -85,6 +85,58 @@ ALTER TABLE location_history ADD COLUMN IF NOT EXISTS hdop DOUBLE PRECISION;
 ALTER TABLE location_history ADD COLUMN IF NOT EXISTS operator TEXT;
 ALTER TABLE location_history ADD COLUMN IF NOT EXISTS fix_age_ms INTEGER;
 
+-- --------------------------------------------- gap-free tracking (backfill)
+-- recorded_at is now WHEN THE FIX HAPPENED (device GPS clock). received_at is
+-- when the server got it. They differ whenever a device buffers points through
+-- a coverage gap and replays them later.
+ALTER TABLE location_history ADD COLUMN IF NOT EXISTS received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+ALTER TABLE location_history ADD COLUMN IF NOT EXISTS is_backfill BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Existing databases may already hold duplicate (device_serial, recorded_at)
+-- rows from before recorded_at meant anything; the unique index below would
+-- fail on them. Keep the earliest row of each pair. No-op once clean.
+DELETE FROM location_history a
+USING location_history b
+WHERE a.id > b.id
+  AND a.device_serial = b.device_serial
+  AND a.recorded_at   = b.recorded_at;
+
+-- Makes replay idempotent: a device re-sending a buffered point after an
+-- unacknowledged publish must not create a duplicate. Paired with
+-- INSERT ... ON CONFLICT DO NOTHING in the subscriber.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_location_history_device_time
+    ON location_history(device_serial, recorded_at);
+
+-- --------------------------------------------- tamper-evident chain
+-- Each stored point is hashed together with the hash before it, forming a
+-- per-device chain. Altering or deleting any row breaks every hash after it,
+-- which is what makes the history evidence rather than just data.
+--
+-- The chain is ordered by INGEST (id), not by recorded_at: backfilled points
+-- legitimately arrive out of chronological order, so the claim the chain
+-- supports is "received in this order and unmodified since".
+ALTER TABLE location_history ADD COLUMN IF NOT EXISTS prev_hash   TEXT;
+ALTER TABLE location_history ADD COLUMN IF NOT EXISTS record_hash TEXT;
+
+-- How the device proved it was itself for this point:
+--   'hmac'   HMAC-SHA256 signature over the payload (firmware rev 3+)
+--   'secret' plaintext shared secret in the payload (legacy firmware)
+-- A certificate reports these separately: only 'hmac' points are
+-- cryptographically attributable to the device.
+ALTER TABLE location_history ADD COLUMN IF NOT EXISTS auth_method VARCHAR(10) NOT NULL DEFAULT 'secret';
+
+CREATE INDEX IF NOT EXISTS idx_location_history_backfill
+    ON location_history(device_serial, is_backfill) WHERE is_backfill;
+
+-- Head of each device's hash chain. Locked FOR UPDATE while appending, which
+-- serialises concurrent inserts for one device so the chain cannot fork.
+CREATE TABLE IF NOT EXISTS device_chain (
+    device_serial VARCHAR(50) PRIMARY KEY REFERENCES devices(serial) ON DELETE CASCADE,
+    head_hash     TEXT NOT NULL,
+    record_count  BIGINT NOT NULL DEFAULT 0,
+    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ------------------------------------------------------------- indexes
 CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
 CREATE INDEX IF NOT EXISTS idx_devices_serial_active ON devices(serial, is_active);

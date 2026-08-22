@@ -96,6 +96,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRY_HOURS: ${JWT_EXPIRY_HOURS:-72}
 
+      # Empty disables certificate issuing; the rest of the app is unaffected.
+      CERT_SIGNING_KEY: ${CERT_SIGNING_KEY:-}
+
       SERVER_PORT: 8080
       APP_ENV: production
       APP_DOMAIN: ${APP_DOMAIN}

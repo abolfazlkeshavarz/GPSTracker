@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"tracking-backend/internal/config"
+	"tracking-backend/internal/integrity"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
@@ -51,6 +52,9 @@ type payload struct {
 	HDOP     float64 `json:"hdop,omitempty"`
 	Operator string  `json:"operator,omitempty"`
 	FixAgeMs int     `json:"fix_age_ms,omitempty"`
+
+	// Signature replaces sending the secret in the clear (firmware rev 3+).
+	Signature string `json:"sig,omitempty"`
 }
 
 func main() {
@@ -67,6 +71,13 @@ func main() {
 		interval = flag.Duration("interval", 3*time.Second, "Delay between publishes (0 = as fast as possible)")
 		count    = flag.Int("count", 0, "Number of messages to publish (0 = run until interrupted)")
 		badParam = flag.Bool("bad-secret", false, "Deliberately send a wrong secret, to verify rejection")
+
+		// Gap-free tracking and tamper-evidence exercises.
+		legacyAuth = flag.Bool("legacy-auth", false, "Send the plaintext secret instead of an HMAC signature")
+		backfill   = flag.Duration("backfill", 0, "Backdate points by this much, simulating replay after a coverage gap")
+		gapAfter   = flag.Int("gap-after", 0, "Publish N live points, then replay a buffered gap (implies -count)")
+		gapMinutes = flag.Int("gap-minutes", 30, "Length of the simulated coverage gap, in minutes")
+		replayLast = flag.Bool("replay", false, "Re-send the previous run's points, to verify duplicates are ignored")
 	)
 	flag.Parse()
 
@@ -102,6 +113,15 @@ func main() {
 	sent := 0
 	curLat, curLng := *lat, *lng
 
+	// A simulated coverage gap: publish some live points, then replay the
+	// buffered ones with their original (older) timestamps. This is what real
+	// store-and-forward firmware does coming out of a tunnel.
+	if *gapAfter > 0 {
+		runGapScenario(client, topic, *device, *secret, *legacyAuth,
+			*gapAfter, *gapMinutes, curLat, curLng)
+		return
+	}
+
 	for {
 		select {
 		case <-stop:
@@ -117,6 +137,22 @@ func main() {
 		curLat += step * math.Cos(heading)
 		curLng += step * math.Sin(heading)
 
+		ts := time.Now().Unix()
+		if *backfill > 0 {
+			ts = time.Now().Add(-*backfill).Unix()
+		}
+		if *replayLast {
+			// Deterministic timestamps so a second run collides with the first
+			// and exercises the ON CONFLICT DO NOTHING path.
+			//
+			// Anchored to the current hour rather than a fixed epoch: a hard
+			// constant eventually falls outside the server's 30-day backfill
+			// window, where it is clamped to "now" and every run gets a fresh
+			// timestamp — which silently stops testing deduplication at all.
+			anchor := time.Now().UTC().Truncate(time.Hour).Add(-time.Hour)
+			ts = anchor.Unix() + int64(sent)*30
+		}
+
 		msg := payload{
 			Device:     *device,
 			Secret:     *secret,
@@ -127,7 +163,7 @@ func main() {
 			CSQ:        12 + rand.Intn(18),
 			Battery:    round2(11.9 + rand.Float64()*1.0),
 			Ignition:   true,
-			Timestamp:  time.Now().Unix(),
+			Timestamp:  ts,
 			// Degrees, derived from the direction actually walked.
 			Heading:  round2(math.Mod(heading*180/math.Pi+360, 360)),
 			Altitude: round2(1150 + rand.Float64()*40),
@@ -135,6 +171,8 @@ func main() {
 			Operator: "MCI",
 			FixAgeMs: 200 + rand.Intn(900),
 		}
+
+		signMessage(&msg, *secret, *legacyAuth)
 
 		body, err := json.Marshal(msg)
 		if err != nil {
@@ -170,3 +208,87 @@ func main() {
 
 func round6(v float64) float64 { return math.Round(v*1e6) / 1e6 }
 func round2(v float64) float64 { return math.Round(v*100) / 100 }
+
+// signMessage attaches an HMAC signature, or leaves the plaintext secret in
+// place when emulating legacy firmware.
+func signMessage(msg *payload, secret string, legacy bool) {
+	if legacy {
+		msg.Signature = ""
+		return
+	}
+
+	msg.Signature = integrity.SignPayload(secret, msg.Device, msg.Timestamp, msg.Lat, msg.Lng)
+
+	// The whole point of signing is that the secret stops travelling in the
+	// clear, so drop it once a signature is present.
+	msg.Secret = ""
+}
+
+// runGapScenario emulates store-and-forward firmware: live points, a coverage
+// gap during which points are buffered, then a burst of backdated replays.
+func runGapScenario(
+	client mqtt.Client, topic, device, secret string, legacy bool,
+	liveCount, gapMinutes int, lat, lng float64,
+) {
+	publish := func(msg payload) {
+		signMessage(&msg, secret, legacy)
+
+		body, _ := json.Marshal(msg)
+		token := client.Publish(topic, 1, false, body)
+		token.WaitTimeout(10 * time.Second)
+
+		kind := "live"
+		if msg.Timestamp < time.Now().Add(-3*time.Minute).Unix() {
+			kind = "BACKFILL"
+		}
+		log.Printf("[%8s] %s  t=%s  %.6f,%.6f",
+			kind, device, time.Unix(msg.Timestamp, 0).Format("15:04:05"), msg.Lat, msg.Lng)
+	}
+
+	base := func(ts int64, la, ln float64) payload {
+		return payload{
+			Device: device, Secret: secret,
+			Lat: round6(la), Lng: round6(ln),
+			Speed: 40 + rand.Intn(30), Satellites: 8 + rand.Intn(4),
+			CSQ: 15 + rand.Intn(12), Battery: round2(12.0 + rand.Float64()*0.6),
+			Ignition: true, Timestamp: ts,
+			Heading: round2(rand.Float64() * 360), Operator: "MCI",
+		}
+	}
+
+	now := time.Now()
+
+	log.Printf("--- %d live points before the gap ---", liveCount)
+	for i := 0; i < liveCount; i++ {
+		lat += 0.0006
+		lng += 0.0008
+		publish(base(now.Add(time.Duration(i-liveCount)*30*time.Second).Unix(), lat, lng))
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	log.Printf("--- simulating a %d-minute coverage gap ---", gapMinutes)
+
+	// Points the device recorded while offline, one per 30s, replayed oldest
+	// first exactly as a drain-the-buffer implementation would.
+	buffered := (gapMinutes * 60) / 30
+	log.Printf("--- replaying %d buffered points ---", buffered)
+
+	for i := 0; i < buffered; i++ {
+		lat += 0.0006
+		lng += 0.0008
+
+		// Count down in 30s steps from the start of the gap. Using minutes
+		// here produced duplicate timestamps, which the server then correctly
+		// rejected as replays - hiding half the points.
+		age := time.Duration(gapMinutes)*time.Minute - time.Duration(i)*30*time.Second
+		publish(base(now.Add(-age).Unix(), lat, lng))
+		time.Sleep(60 * time.Millisecond)
+	}
+
+	log.Printf("--- back online, one current point ---")
+	lat += 0.0006
+	lng += 0.0008
+	publish(base(now.Unix(), lat, lng))
+
+	log.Println("Gap scenario complete.")
+}

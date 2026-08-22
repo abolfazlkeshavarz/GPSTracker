@@ -13,6 +13,13 @@ const ROUTE_LAYER = "track-route-line";
 const ROUTE_CASING = "track-route-casing";
 const ARROW_LAYER = "track-route-arrows";
 
+// Backfilled stretches are drawn as a separate dashed line. They are just as
+// real as the rest, but they were recovered from a coverage gap rather than
+// received live, and a user comparing the map against their memory of the day
+// deserves to see which is which.
+const BACKFILL_SOURCE = "track-backfill";
+const BACKFILL_LAYER = "track-backfill-line";
+
 interface Props {
   points: TrackPoint[];
   stops: TrackStop[];
@@ -79,6 +86,23 @@ export default function HistoryMap({
         paint: { "line-color": "#3b82f6", "line-width": 4 },
       });
 
+      map.addSource(BACKFILL_SOURCE, {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
+      map.addLayer({
+        id: BACKFILL_LAYER,
+        type: "line",
+        source: BACKFILL_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#f59e0b",
+          "line-width": 4,
+          "line-dasharray": [1.5, 1.5],
+        },
+      });
+
       // Direction of travel, so a route that doubles back is readable.
       map.addLayer({
         id: ARROW_LAYER,
@@ -125,6 +149,41 @@ export default function HistoryMap({
       properties: {},
       geometry: { type: "LineString", coordinates },
     });
+
+    // Contiguous runs of backfilled points, drawn over the main line.
+    const backfillSource = map.getSource(BACKFILL_SOURCE) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+
+    if (backfillSource) {
+      const segments: [number, number][][] = [];
+      let current: [number, number][] = [];
+
+      points.forEach((p, i) => {
+        if (p.is_backfill) {
+          // Start one point earlier so the dashed run visually connects to
+          // the live track instead of floating detached from it.
+          if (current.length === 0 && i > 0) {
+            current.push([points[i - 1].lng, points[i - 1].lat]);
+          }
+          current.push([p.lng, p.lat]);
+        } else if (current.length > 0) {
+          current.push([p.lng, p.lat]);
+          segments.push(current);
+          current = [];
+        }
+      });
+      if (current.length > 1) segments.push(current);
+
+      backfillSource.setData({
+        type: "FeatureCollection",
+        features: segments.map((coords) => ({
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: coords },
+        })),
+      });
+    }
 
     // Markers are plain DOM, so they are rebuilt rather than diffed.
     markersRef.current.forEach((m) => m.remove());

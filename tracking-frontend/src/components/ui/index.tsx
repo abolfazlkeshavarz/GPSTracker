@@ -28,7 +28,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const buttonVariants: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand text-white hover:bg-brand-hover shadow-sm disabled:hover:bg-brand",
+    "bg-brand text-white hover:bg-brand-hover shadow-sm hover:shadow-glow disabled:hover:bg-brand disabled:hover:shadow-sm",
   secondary:
     "bg-surface text-content border border-line hover:bg-surface-sunken hover:border-line-strong",
   ghost:
@@ -58,8 +58,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       aria-busy={loading || undefined}
       className={cx(
         "inline-flex items-center justify-center rounded-control font-medium",
-        "transition-colors duration-150",
-        "disabled:opacity-50 disabled:cursor-not-allowed",
+        // cursor-pointer and a real press state: both on the plugin's
+        // pre-delivery checklist, and a 150ms transition is inside the
+        // 150-300ms band it asks for.
+        "cursor-pointer select-none transition-all duration-150",
+        "active:scale-[0.98] active:duration-75",
+        "disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100",
         buttonVariants[variant],
         buttonSizes[size],
         fullWidth && "w-full",
@@ -88,6 +92,12 @@ export function Card({ className, children, flush, as: Tag = "div" }: CardProps)
     <Tag
       className={cx(
         "bg-surface border border-line rounded-card shadow-sm",
+        // A 1px top highlight reads as a lit edge on the dark surface and is
+        // invisible in light mode, which is what gives the dark theme depth
+        // without resorting to heavy gradients.
+        "relative before:absolute before:inset-x-0 before:top-0 before:h-px",
+        "before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent",
+        "before:rounded-t-card before:pointer-events-none",
         !flush && "p-5",
         className
       )}
@@ -111,7 +121,7 @@ export function CardHeader({
   return (
     <div className={cx("flex items-start justify-between gap-4 px-5 py-4 border-b border-line", className)}>
       <div className="min-w-0">
-        <h2 className="font-semibold text-content truncate">{title}</h2>
+        <h2 className="font-semibold text-content truncate tracking-tight">{title}</h2>
         {subtitle && <p className="text-xs text-content-muted mt-0.5">{subtitle}</p>}
       </div>
       {action}
@@ -203,6 +213,7 @@ export function StatTile({
   accent = "series-1",
   hint,
   loading,
+  live,
 }: {
   label: string;
   value: ReactNode;
@@ -210,6 +221,8 @@ export function StatTile({
   accent?: "series-1" | "series-2" | "series-3" | "series-4" | "status-good" | "status-critical";
   hint?: ReactNode;
   loading?: boolean;
+  /** Adds the live glow. Only for values backed by a current source. */
+  live?: boolean;
 }) {
   const accents: Record<string, { bg: string; fg: string; rule: string }> = {
     "series-1": { bg: "bg-series-1/10", fg: "text-series-1", rule: "bg-series-1" },
@@ -222,20 +235,30 @@ export function StatTile({
   const a = accents[accent] ?? accents["series-1"];
 
   return (
-    <Card flush className="relative overflow-hidden p-4">
+    <Card
+      flush
+      className={cx(
+        "relative overflow-hidden p-4 transition-shadow duration-200",
+        live && "shadow-glow-good"
+      )}
+    >
       <span className={cx("absolute inset-y-0 start-0 w-1", a.rule)} aria-hidden />
 
       <div className="flex items-start justify-between gap-3 ps-2">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-content-muted truncate">{label}</p>
+          <p className="text-label font-semibold uppercase text-content-muted truncate">{label}</p>
 
           {loading ? (
-            <Skeleton className="h-7 w-16 mt-1.5" />
+            <Skeleton className="h-8 w-16 mt-1.5" />
           ) : (
-            <p className="text-metric font-semibold text-content mt-0.5">{value}</p>
+            /* tnum: the value updates in place, and proportional digits make
+               the tile jitter as the number changes width. */
+            <p className="text-metric font-semibold text-content mt-1 tnum">{value}</p>
           )}
 
-          {hint && <p className="text-xs text-content-muted mt-1">{hint}</p>}
+          {/* Fixed slot: without it, a hint appearing after load shifts every
+              tile in the row (the "Content Jumping" guideline). */}
+          <p className="text-xs text-content-muted mt-1 min-h-[1rem] truncate">{hint ?? " "}</p>
         </div>
 
         {icon && (
@@ -368,7 +391,7 @@ export function PageHeading({
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div className="min-w-0">
-        <h1 className="text-display font-semibold text-content">{title}</h1>
+        <h1 className="text-display text-content">{title}</h1>
         {subtitle && <p className="text-sm text-content-muted mt-1">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}

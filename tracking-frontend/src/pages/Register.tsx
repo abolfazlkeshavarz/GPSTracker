@@ -51,22 +51,24 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-page flex flex-col">
-      <div className="flex justify-end p-4">
+    <div className="relative min-h-screen bg-page flex flex-col overflow-hidden">
+      <div className="absolute inset-0 bg-grid bg-grid-fade pointer-events-none" aria-hidden />
+
+      <div className="relative flex justify-end p-4">
         <LanguageSwitcher />
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4 pb-16">
+      <div className="relative flex-1 flex items-center justify-center px-4 pb-16">
         <div className="w-full max-w-sm animate-fade-in">
           <div className="text-center mb-8">
-            <span className="inline-grid place-items-center w-14 h-14 rounded-2xl bg-brand text-white shadow-lg mb-4">
+            <span className="inline-grid place-items-center w-14 h-14 rounded-2xl bg-brand text-white shadow-glow mb-4">
               <UserPlus className="w-7 h-7" />
             </span>
-            <h1 className="text-display font-semibold text-content">{t("create.account.title")}</h1>
+            <h1 className="text-display text-content">{t("create.account.title")}</h1>
             <p className="text-sm text-content-muted mt-1.5">{t("join.gps.tracker")}</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-card shadow-sm p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-card shadow-lg p-6 space-y-4">
             {error && (
               <div
                 role="alert"

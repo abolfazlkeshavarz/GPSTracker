@@ -55,8 +55,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-page flex flex-col">
-      <div className="flex items-center justify-end gap-2 p-4">
+    <div className="relative min-h-screen bg-page flex flex-col overflow-hidden">
+      {/* Same hairline grid as the dashboard hero, so the product reads as one
+          system from the first screen. */}
+      <div className="absolute inset-0 bg-grid bg-grid-fade pointer-events-none" aria-hidden />
+
+      <div className="relative flex items-center justify-end gap-2 p-4">
         <LanguageSwitcher />
         <button
           onClick={cycleTheme}
@@ -67,17 +71,17 @@ export default function Login() {
         </button>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4 pb-16">
+      <div className="relative flex-1 flex items-center justify-center px-4 pb-16">
         <div className="w-full max-w-sm animate-fade-in">
           <div className="text-center mb-8">
-            <span className="inline-grid place-items-center w-14 h-14 rounded-2xl bg-brand text-white shadow-lg mb-4">
+            <span className="inline-grid place-items-center w-14 h-14 rounded-2xl bg-brand text-white shadow-glow mb-4">
               <MapPin className="w-7 h-7" />
             </span>
-            <h1 className="text-display font-semibold text-content">{t("gps.tracker")}</h1>
+            <h1 className="text-display text-content">{t("gps.tracker")}</h1>
             <p className="text-sm text-content-muted mt-1.5">{t("welcome.back")}</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-card shadow-sm p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-card shadow-lg p-6 space-y-4">
             {error && (
               <div
                 role="alert"

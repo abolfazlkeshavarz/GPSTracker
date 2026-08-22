@@ -38,6 +38,12 @@ type Config struct {
     ServerPort string
     SSLMode    string
     Env        string
+
+    // CertSigningKey is the base64 Ed25519 private key used to sign trip
+    // certificates. Empty disables certificate issuing; verification of
+    // previously issued documents still works, since that only needs the
+    // public key embedded in them.
+    CertSigningKey string
 }
 
 // insecureDevSecret is the fallback signing key. It is public knowledge (it
@@ -107,6 +113,7 @@ func Load() *Config {
         AppDomain: getEnv("APP_DOMAIN", ""),
 
         // Server
+        CertSigningKey: getEnv("CERT_SIGNING_KEY", ""),
         ServerPort: getEnv("SERVER_PORT", "8080"),
         SSLMode:    getEnv("DB_SSLMODE", "disable"),
         Env:        env,

@@ -1,50 +1,60 @@
 /*
- * Design tokens.
+ * Design tokens — "Mission Control".
  *
- * Colours are stored as raw "R G B" channel triplets so Tailwind can apply
- * opacity to them (`bg-surface/60`). Every token is declared for both themes:
- * the media query follows the OS setting, and the [data-theme] scopes let the
- * in-app toggle win in either direction.
+ * Direction resolved with the ui-ux-pro-max plugin and recorded in
+ * design-system/gpstracker/MASTER.md:
  *
- * The data-mark colours (series/*, status/*) are not free choices — they come
+ *   Style   Data-Dense Dashboard (accessibility risk: low, built for
+ *           operational dashboards). The plugin's first suggestion was
+ *           HUD / Sci-Fi FUI, rejected as the whole-UI treatment because it
+ *           carries "accessibility risk: high" and neon-on-black is punishing
+ *           over an 8-hour shift. Its cues are kept where they earn their
+ *           place: a glow on genuinely-live elements only.
+ *   Colour  Logistics/Delivery tracking blue + a deep slate dark mode.
+ *   Density 8/10 — dashboard spacing scale (8-32px).
+ *
+ * Colours are "R G B" channel triplets so Tailwind can apply opacity
+ * (`bg-surface/60`).
+ *
+ * The data-mark colours (series/*, status/*) are NOT free choices: they come
  * from a palette validated for colour-vision deficiency against these exact
- * surfaces. Do not hand-edit them; re-run the validator if they must change.
+ * surfaces. Re-run the validator before changing any of them.
  */
 
 :root {
   color-scheme: light;
 
   /* --- surfaces ------------------------------------------------------- */
-  --page: 246 247 249;
+  --page: 246 248 251;
   --surface: 255 255 255;
   --surface-raised: 255 255 255;
-  --surface-sunken: 242 244 247;
-  --surface-inverse: 16 24 40;
+  --surface-sunken: 238 242 247;
+  --surface-inverse: 11 18 32;
 
   /* --- ink ------------------------------------------------------------ */
-  --text-primary: 16 24 40;
-  --text-secondary: 71 84 103;
-  --text-muted: 102 112 133;      /* 4.9:1 on white - safe for small text */
+  --text-primary: 11 18 32;
+  --text-secondary: 61 74 92;
+  --text-muted: 100 116 139;      /* 4.6:1 on white — safe for small text */
   --text-inverse: 255 255 255;
 
   /* --- lines ---------------------------------------------------------- */
-  --border: 228 231 236;
-  --border-strong: 208 213 221;
-  --ring: 42 120 214;
+  --border: 227 232 239;
+  --border-strong: 203 213 225;
+  --ring: 37 99 235;
 
-  /* --- brand ---------------------------------------------------------- */
-  --brand: 42 120 214;
-  --brand-hover: 37 106 191;
-  --brand-subtle: 234 242 253;
-  --brand-ink: 24 79 149;
+  /* --- brand (tracking blue) ------------------------------------------ */
+  --brand: 37 99 235;
+  --brand-hover: 29 78 216;
+  --brand-subtle: 239 246 255;
+  --brand-ink: 30 64 175;
 
   /* --- data series (validated categorical order) ---------------------- */
-  --series-1: 42 120 214;    /* blue    */
-  --series-2: 235 104 52;    /* orange  */
-  --series-3: 27 175 122;    /* aqua    */
-  --series-4: 237 161 0;     /* yellow  */
-  --series-5: 232 123 164;   /* magenta */
-  --series-6: 74 58 167;     /* violet  */
+  --series-1: 42 120 214;
+  --series-2: 235 104 52;
+  --series-3: 27 175 122;
+  --series-4: 237 161 0;
+  --series-5: 232 123 164;
+  --series-6: 74 58 167;
 
   /* --- status (always paired with an icon + label, never colour alone) - */
   --status-good: 12 163 12;
@@ -52,45 +62,55 @@
   --status-serious: 236 131 90;
   --status-critical: 208 59 59;
 
-  /* Tinted backgrounds for status pills. */
   --status-good-bg: 232 248 232;
   --status-warning-bg: 254 246 227;
   --status-serious-bg: 253 238 231;
   --status-critical-bg: 251 233 233;
 
   /* --- elevation ------------------------------------------------------ */
-  --shadow-sm: 0 1px 2px 0 rgb(16 24 40 / 0.05);
-  --shadow-md: 0 4px 8px -2px rgb(16 24 40 / 0.10), 0 2px 4px -2px rgb(16 24 40 / 0.06);
-  --shadow-lg: 0 12px 16px -4px rgb(16 24 40 / 0.08), 0 4px 6px -2px rgb(16 24 40 / 0.03);
-  --shadow-xl: 0 20px 24px -4px rgb(16 24 40 / 0.08), 0 8px 8px -4px rgb(16 24 40 / 0.03);
+  --shadow-sm: 0 1px 2px 0 rgb(11 18 32 / 0.06);
+  --shadow-md: 0 4px 10px -2px rgb(11 18 32 / 0.10), 0 2px 4px -2px rgb(11 18 32 / 0.05);
+  --shadow-lg: 0 14px 28px -8px rgb(11 18 32 / 0.14), 0 4px 8px -4px rgb(11 18 32 / 0.06);
+  --shadow-xl: 0 24px 48px -12px rgb(11 18 32 / 0.18);
+
+  /* --- HUD accents -----------------------------------------------------
+   * Reserved for elements that are genuinely live. Using them decoratively
+   * would make "live" meaningless, which is the trap the sci-fi style falls
+   * into. */
+  --glow-brand: 0 0 0 1px rgb(var(--brand) / 0.25), 0 0 18px -2px rgb(var(--brand) / 0.30);
+  --glow-good: 0 0 0 1px rgb(var(--status-good) / 0.30), 0 0 16px -2px rgb(var(--status-good) / 0.35);
+
+  /* Hairline grid used behind hero surfaces — the one "technical" texture. */
+  --grid-line: rgb(11 18 32 / 0.045);
 }
 
-/* Dark theme. Declared twice on purpose - see the file header. */
+/* Dark theme. Declared under both scopes: the media query follows the OS,
+   the attribute lets the in-app toggle win in either direction. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --page: 12 13 16;
-    --surface: 23 24 28;
-    --surface-raised: 31 33 39;
-    --surface-sunken: 18 19 23;
-    --surface-inverse: 246 247 249;
+    --page: 7 11 20;
+    --surface: 14 20 36;
+    --surface-raised: 20 27 45;
+    --surface-sunken: 10 15 27;
+    --surface-inverse: 246 248 251;
 
-    --text-primary: 255 255 255;
-    --text-secondary: 203 210 220;
-    --text-muted: 139 148 163;
-    --text-inverse: 16 24 40;
+    --text-primary: 248 250 252;
+    --text-secondary: 195 204 218;
+    --text-muted: 134 149 171;
+    --text-inverse: 11 18 32;
 
-    --border: 40 43 51;
-    --border-strong: 57 61 71;
-    --ring: 57 135 229;
+    --border: 30 39 64;
+    --border-strong: 46 58 85;
+    --ring: 79 141 247;
 
-    --brand: 57 135 229;
-    --brand-hover: 109 167 236;
-    --brand-subtle: 22 40 64;
-    --brand-ink: 158 197 244;
+    --brand: 79 141 247;
+    --brand-hover: 123 169 250;
+    --brand-subtle: 18 32 58;
+    --brand-ink: 168 199 251;
 
-    /* Same eight hues, stepped for the dark surface - not an auto-flip. */
+    /* Same hues, stepped for the dark surface — not an automatic flip. */
     --series-1: 57 135 229;
     --series-2: 217 89 38;
     --series-3: 25 158 112;
@@ -103,40 +123,45 @@
     --status-serious: 236 131 90;
     --status-critical: 208 59 59;
 
-    --status-good-bg: 16 44 16;
-    --status-warning-bg: 51 40 12;
-    --status-serious-bg: 51 32 23;
-    --status-critical-bg: 51 21 21;
+    --status-good-bg: 12 38 20;
+    --status-warning-bg: 46 36 12;
+    --status-serious-bg: 48 30 22;
+    --status-critical-bg: 48 20 22;
 
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.30);
-    --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.40), 0 2px 4px -2px rgb(0 0 0 / 0.30);
-    --shadow-lg: 0 12px 16px -4px rgb(0 0 0 / 0.45), 0 4px 6px -2px rgb(0 0 0 / 0.30);
-    --shadow-xl: 0 20px 24px -4px rgb(0 0 0 / 0.50), 0 8px 8px -4px rgb(0 0 0 / 0.30);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.40);
+    --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 0.50), 0 2px 4px -2px rgb(0 0 0 / 0.40);
+    --shadow-lg: 0 14px 28px -8px rgb(0 0 0 / 0.60), 0 4px 8px -4px rgb(0 0 0 / 0.40);
+    --shadow-xl: 0 24px 48px -12px rgb(0 0 0 / 0.70);
+
+    --glow-brand: 0 0 0 1px rgb(var(--brand) / 0.35), 0 0 22px -2px rgb(var(--brand) / 0.45);
+    --glow-good: 0 0 0 1px rgb(var(--status-good) / 0.40), 0 0 20px -2px rgb(var(--status-good) / 0.50);
+
+    --grid-line: rgb(255 255 255 / 0.035);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --page: 12 13 16;
-  --surface: 23 24 28;
-  --surface-raised: 31 33 39;
-  --surface-sunken: 18 19 23;
-  --surface-inverse: 246 247 249;
+  --page: 7 11 20;
+  --surface: 14 20 36;
+  --surface-raised: 20 27 45;
+  --surface-sunken: 10 15 27;
+  --surface-inverse: 246 248 251;
 
-  --text-primary: 255 255 255;
-  --text-secondary: 203 210 220;
-  --text-muted: 139 148 163;
-  --text-inverse: 16 24 40;
+  --text-primary: 248 250 252;
+  --text-secondary: 195 204 218;
+  --text-muted: 134 149 171;
+  --text-inverse: 11 18 32;
 
-  --border: 40 43 51;
-  --border-strong: 57 61 71;
-  --ring: 57 135 229;
+  --border: 30 39 64;
+  --border-strong: 46 58 85;
+  --ring: 79 141 247;
 
-  --brand: 57 135 229;
-  --brand-hover: 109 167 236;
-  --brand-subtle: 22 40 64;
-  --brand-ink: 158 197 244;
+  --brand: 79 141 247;
+  --brand-hover: 123 169 250;
+  --brand-subtle: 18 32 58;
+  --brand-ink: 168 199 251;
 
   --series-1: 57 135 229;
   --series-2: 217 89 38;
@@ -150,13 +175,18 @@
   --status-serious: 236 131 90;
   --status-critical: 208 59 59;
 
-  --status-good-bg: 16 44 16;
-  --status-warning-bg: 51 40 12;
-  --status-serious-bg: 51 32 23;
-  --status-critical-bg: 51 21 21;
+  --status-good-bg: 12 38 20;
+  --status-warning-bg: 46 36 12;
+  --status-serious-bg: 48 30 22;
+  --status-critical-bg: 48 20 22;
 
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.30);
-  --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.40), 0 2px 4px -2px rgb(0 0 0 / 0.30);
-  --shadow-lg: 0 12px 16px -4px rgb(0 0 0 / 0.45), 0 4px 6px -2px rgb(0 0 0 / 0.30);
-  --shadow-xl: 0 20px 24px -4px rgb(0 0 0 / 0.50), 0 8px 8px -4px rgb(0 0 0 / 0.30);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.40);
+  --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 0.50), 0 2px 4px -2px rgb(0 0 0 / 0.40);
+  --shadow-lg: 0 14px 28px -8px rgb(0 0 0 / 0.60), 0 4px 8px -4px rgb(0 0 0 / 0.40);
+  --shadow-xl: 0 24px 48px -12px rgb(0 0 0 / 0.70);
+
+  --glow-brand: 0 0 0 1px rgb(var(--brand) / 0.35), 0 0 22px -2px rgb(var(--brand) / 0.45);
+  --glow-good: 0 0 0 1px rgb(var(--status-good) / 0.40), 0 0 20px -2px rgb(var(--status-good) / 0.50);
+
+  --grid-line: rgb(255 255 255 / 0.035);
 }

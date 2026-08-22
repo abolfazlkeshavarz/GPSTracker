@@ -1,4 +1,7 @@
 /* src/index.css */
+/* Self-hosted variable Inter. The production CSP blocks external font hosts,
+   so Google Fonts is not an option here. */
+@import '@fontsource-variable/inter';
 @import './styles/tokens.css';
 
 @tailwind base;
@@ -61,7 +64,10 @@ html {
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif;
+  /* Must match fontFamily.sans in tailwind.config.js. Inter carries the
+     Latin text; Vazirmatn covers the Arabic-script range Inter lacks, so
+     Persian falls through to it per-glyph. */
+  font-family: 'InterVariable', 'Inter', 'Vazirmatn', system-ui, -apple-system, sans-serif;
   background: rgb(var(--page));
   color: rgb(var(--text-primary));
   -webkit-font-smoothing: antialiased;
@@ -161,4 +167,51 @@ textarea {
 
 [dir="rtl"] .key-value-pair .value {
   order: 1;
+}
+
+/* ------------------------------------------------------------------ utils */
+@layer utilities {
+  /* Hairline technical grid. The single "HUD" texture in the system, used
+     behind hero surfaces only — as wallpaper everywhere it just adds noise. */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* Fades the grid out toward the edges so it never ends in a hard line. */
+  .bg-grid-fade {
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+  }
+
+  /* Staggered entrance for grid children (standard motion tier, ~400ms).
+     Done with nth-child delays rather than an animation library — the effect
+     is worth about 20 lines of CSS, not a dependency. */
+  .stagger > * {
+    animation: rise-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .stagger > *:nth-child(1)  { animation-delay: 0ms; }
+  .stagger > *:nth-child(2)  { animation-delay: 45ms; }
+  .stagger > *:nth-child(3)  { animation-delay: 90ms; }
+  .stagger > *:nth-child(4)  { animation-delay: 135ms; }
+  .stagger > *:nth-child(5)  { animation-delay: 180ms; }
+  .stagger > *:nth-child(6)  { animation-delay: 225ms; }
+  .stagger > *:nth-child(7)  { animation-delay: 270ms; }
+  .stagger > *:nth-child(n+8) { animation-delay: 300ms; }
+
+  /* Tabular figures for anything that updates in place, so the layout does
+     not jitter as digits change width. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* The reduced-motion block near the top already neutralises these, but the
+   stagger delays would still hold content invisible for 300ms. Reset them. */
+@media (prefers-reduced-motion: reduce) {
+  .stagger > * {
+    animation: none !important;
+  }
 }

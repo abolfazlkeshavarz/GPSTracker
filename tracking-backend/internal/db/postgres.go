@@ -113,6 +113,39 @@ func createTables() error {
 		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS operator TEXT`,
 		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS fix_age_ms INTEGER`,
 
+		// --- gap-free tracking -------------------------------------------
+		// recorded_at now means "when the fix happened" (device clock);
+		// received_at is when the server got it. They diverge whenever a
+		// device replays points buffered through a coverage gap.
+		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()`,
+		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS is_backfill BOOLEAN NOT NULL DEFAULT FALSE`,
+
+		// Older rows may collide on (device_serial, recorded_at); the unique
+		// index below cannot be created until they are gone.
+		`DELETE FROM location_history a USING location_history b
+         WHERE a.id > b.id
+           AND a.device_serial = b.device_serial
+           AND a.recorded_at   = b.recorded_at`,
+
+		// Makes replay idempotent, with ON CONFLICT DO NOTHING on insert.
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_location_history_device_time
+            ON location_history(device_serial, recorded_at)`,
+
+		// --- tamper-evident chain ----------------------------------------
+		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS prev_hash TEXT`,
+		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS record_hash TEXT`,
+		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS auth_method VARCHAR(10) NOT NULL DEFAULT 'secret'`,
+
+		`CREATE INDEX IF NOT EXISTS idx_location_history_backfill
+            ON location_history(device_serial, is_backfill) WHERE is_backfill`,
+
+		`CREATE TABLE IF NOT EXISTS device_chain (
+            device_serial VARCHAR(50) PRIMARY KEY REFERENCES devices(serial) ON DELETE CASCADE,
+            head_hash     TEXT NOT NULL,
+            record_count  BIGINT NOT NULL DEFAULT 0,
+            updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )`,
+
 		`CREATE INDEX IF NOT EXISTS idx_location_history_device_time
             ON location_history(device_serial, recorded_at DESC)`,
 

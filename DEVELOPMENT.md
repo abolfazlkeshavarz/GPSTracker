@@ -26,7 +26,7 @@ Verify everything at once:
 
 ```bash
 make health   # is every dependency up?
-make smoke    # ~49 end-to-end API assertions
+make smoke    # 63 end-to-end API assertions
 ```
 
 ---
@@ -183,7 +183,134 @@ drift alone — there is a regression test for exactly this.
 `make db-journey` loads a day of driving for `TRACKER-002` with three real
 stops plus a 90-second traffic-light pause that must *not* be reported.
 
+## Gap-free tracking
+
+The differentiator: **no missing kilometres**. Points recorded while the
+network is unreachable are buffered on the device and replayed when it
+reconnects, so tunnels, underground parking and rural dead zones stop leaving
+holes in the history.
+
+Three pieces have to agree for this to work:
+
+1. **The firmware buffers to flash.** `firmware/GPS-SIM800C-MQTT-DC-v3.ino`
+   keeps a line-delimited JSON queue on LittleFS, drains it oldest-first on
+   reconnect, and removes only the prefix it actually delivered — so a link
+   that drops mid-drain resumes rather than losing the batch.
+
+2. **`recorded_at` is the device clock, not the server clock.** This was the
+   blocker: the old ingest hardcoded `NOW()`, so a point replayed twenty
+   minutes late was filed as *now* and the vehicle appeared to teleport.
+   `resolveTimestamp` in `internal/mqtt/ingest.go` now trusts the device time
+   within limits — nothing before 2020, nothing more than 5 minutes in the
+   future, nothing older than 30 days — and falls back to the server clock
+   outside them.
+
+3. **Replay is idempotent.** A unique index on `(device_serial, recorded_at)`
+   plus `ON CONFLICT DO NOTHING` means a device re-sending a point it already
+   delivered creates nothing. Verified: sending the same five points twice
+   leaves the row count unchanged.
+
+A backfilled point is stored in history but deliberately **not** written to the
+Redis `latest:` key and **not** broadcast over the WebSocket. Both would drag
+the live marker backwards to a position the vehicle left long ago.
+
+```bash
+make mqtt-gap GAP_MINUTES=20   # live points, an outage, then the replay
+make mqtt-replay               # send the same points twice; no duplicates
+```
+
+The UI marks recovered stretches with a dashed amber line on the history map
+and says how many points were recovered, so nobody wonders why the map filled
+in after the fact.
+
+## Tamper-evident history
+
+The second differentiator: history that can be **shown** to be unaltered,
+rather than merely asserted.
+
+Two independent mechanisms, kept separate because they prove different things:
+
+| Mechanism | Proves | Does not prove |
+|---|---|---|
+| **HMAC** on each payload | the point came from something holding the device secret, unmodified in flight | anything about what happened after storage |
+| **Hash chain** over stored rows | nothing was edited, deleted or reordered after storage — including by someone with database access | that the point was genuine to begin with |
+
+### The chain
+
+Every stored point is hashed together with the hash before it, inside the same
+transaction as the insert, with the per-device chain head locked `FOR UPDATE`
+so concurrent inserts cannot fork it.
+
+It is ordered by **arrival**, not by `recorded_at`. Backfilled points
+legitimately arrive out of chronological order, so the claim the chain supports
+is exactly: *these records were received in this order and have not been
+modified since*.
+
+Rows stored before this feature existed have no hash. They are reported as
+`unprotected_count` and excluded from the verified set — never silently counted
+as verified. Claiming rows are tamper-proof when they were never hashed is the
+one thing this feature must not do.
+
+### Certificates
+
+`GET /api/devices/:serial/certificate` issues a signed JSON document: the
+points, the chain endpoints, a distance and duration summary, and an **Ed25519**
+signature.
+
+Asymmetric on purpose. An HMAC could only be checked by someone holding the
+same secret — i.e. the operator verifying their own claim. With Ed25519 the
+public key is published at `GET /api/certificate-key` (unauthenticated), so an
+insurer, a customer's auditor or a court expert can verify the document without
+an account here and without being able to forge one.
+
+Every certificate carries a disclaimer stating what it does not prove: a device
+can be moved, its secret extracted, or its GPS spoofed. It is evidence about the
+recorded data, not about the world.
+
+```bash
+make cert-keygen                        # once per environment
+make verify-chain SERIAL=DEVICEADMIN    # replay the chain from the database
+make cert-verify FILE=certificate.json  # verify a document with no database
+```
+
+### Firmware authentication
+
+Rev 3 signs each payload instead of transmitting the secret. Previously the
+device secret travelled in cleartext in **every** message, so anyone able to
+read the broker could impersonate the device permanently.
+
+Legacy firmware still works — a payload with no `sig` falls back to the
+plaintext secret — but those points are recorded as `auth_method = 'secret'`
+and reported separately everywhere, because they are weaker evidence.
+
+The signing format is a hard contract between C++ and Go:
+
+```
+device|timestamp|lat|lng        coordinates at exactly 6 decimal places
+```
+
+`internal/integrity/vectors_test.go` pins it. If that test fails, deployed
+devices will stop authenticating until they are reflashed.
+
+### Verified by running it
+
+- 21-point chain across a simulated 10-minute gap: verifies clean.
+- Editing one latitude in the database: caught, with the exact record id.
+- Deleting a row, reordering rows, clearing a hash: all caught.
+- Editing a certificate's distance, or moving a point inside it: signature
+  invalid.
+- Verifying a certificate against an unrelated public key: rejected.
+- Mixed HMAC and legacy points in one chain: still verifies.
+
 ## Interface
+
+The visual direction was resolved with the `ui-ux-pro-max` plugin and is
+recorded in `design-system/gpstracker/MASTER.md`, including the places the
+build deliberately departs from the generated output and why. Read that file
+before changing the look of anything.
+
+**Style:** Data-Dense Dashboard (`accessibility risk: low`, built for
+operational dashboards). **Density:** 8/10. **Motion:** standard tier, ~400ms.
 
 ### Design tokens
 
@@ -218,6 +345,25 @@ Two rules follow from that, and both are load-bearing:
 `src/components/ui` holds `Button`, `Card`, `Badge`, `StatTile`, `Input`,
 `Skeleton`, `EmptyState`, `Meter`, `StatusDot`. Reach for these before writing
 new Tailwind strings.
+
+### Two conventions worth keeping
+
+- **Reserve space for anything async.** `StatTile` renders a non-breaking
+  space when it has no hint, and the section header has a `min-h`. Without
+  that, a value arriving after load shifts every tile in the row.
+- **Announce state as a sentence.** The device count is
+  `role="status" aria-atomic="true"` reading "2 of 3 devices reporting", not a
+  bare number — a screen reader announcing "2" on its own means nothing.
+
+### Verified in the browser
+
+Light mode: every sampled text pair ≥ 4.76:1. Dark mode: ≥ 6.03:1. Sidebar
+navigation items are 44px tall; the mobile bar is 52px.
+
+One gotcha when testing in a headless pane: it does not composite, so CSS
+transitions freeze mid-flight and `getComputedStyle` reports the *pre-toggle*
+colour. Dark mode looks broken and contrast looks like it fails. Inject
+`*{transition:none!important}` before measuring.
 
 ## Realtime connection
 

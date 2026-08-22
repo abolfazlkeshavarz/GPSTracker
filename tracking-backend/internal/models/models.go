@@ -126,6 +126,9 @@ type TrackPoint struct {
     Heading    *float64  `json:"heading,omitempty"`
     Altitude   *float64  `json:"altitude,omitempty"`
     HDOP       *float64  `json:"hdop,omitempty"`
+    // IsBackfill marks a point that was buffered through a coverage gap and
+    // replayed later, rather than arriving live.
+    IsBackfill bool      `json:"is_backfill,omitempty"`
     RecordedAt time.Time `json:"recorded_at"`
 }
 

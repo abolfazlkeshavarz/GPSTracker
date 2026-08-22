@@ -323,6 +323,66 @@ else
   fail "25 failed logins in a row were never rate limited"
 fi
 
+
+# ------------------------------------------------------- integrity / backfill
+echo ""
+echo "10. Tamper-evident history"
+
+resp=$(api GET "/api/devices/TRACKER-001/verify?from=$YESTERDAY&to=$TODAY" "" "$USER1_TOKEN")
+expect_status "chain verification" 200 "$(status_of "$resp")"
+
+verify_body=$(body_of "$resp")
+for field in '"valid"' '"hmac_count"' '"unprotected_count"' '"head_hash"'; do
+  if grep -q "$field" <<<"$verify_body"; then
+    pass "verification reports $field"
+  else
+    fail "verification missing $field"
+  fi
+done
+
+resp=$(api GET "/api/devices/TRACKER-002/verify?from=$YESTERDAY&to=$TODAY" "" "$USER1_TOKEN")
+expect_status "cross-tenant verification blocked" 403 "$(status_of "$resp")"
+
+# The public key must be reachable without a token: a third party verifying a
+# certificate has no account here.
+resp=$(api GET /api/certificate-key)
+expect_status "public key served unauthenticated" 200 "$(status_of "$resp")"
+
+if grep -q '"algorithm":"Ed25519"' <<<"$(body_of "$resp")"; then
+  pass "public key advertises Ed25519"
+else
+  fail "public key response missing the algorithm"
+fi
+
+resp=$(api GET "/api/devices/TRACKER-001/certificate?from=$YESTERDAY&to=$TODAY" "" "$USER1_TOKEN")
+cert_status=$(status_of "$resp")
+
+if [[ "$cert_status" == "501" ]]; then
+  info "certificate signing not configured (set CERT_SIGNING_KEY to enable)"
+else
+  expect_status "certificate issued" 200 "$cert_status"
+
+  cert_body=$(body_of "$resp")
+  for field in '"signature"' '"public_key"' '"chain_start"' '"chain_end"' '"disclaimer"'; do
+    if grep -q "$field" <<<"$cert_body"; then
+      pass "certificate contains $field"
+    else
+      fail "certificate missing $field"
+    fi
+  done
+
+  # The document must state what it does not prove. Dropping that line would
+  # let it be read as proof the vehicle was physically there.
+  if grep -q "not proof of the physical location" <<<"$cert_body"; then
+    pass "certificate states the limits of its claim"
+  else
+    fail "certificate disclaimer is missing or reworded"
+  fi
+fi
+
+resp=$(api GET "/api/devices/TRACKER-002/certificate?from=$YESTERDAY&to=$TODAY" "" "$USER1_TOKEN")
+expect_status "cross-tenant certificate blocked" 403 "$(status_of "$resp")"
+
 # ----------------------------------------------------------------- summary
 echo ""
 echo "====================="

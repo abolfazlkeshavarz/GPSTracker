@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import HistoryMap from "../components/map/HistoryMap";
 import { getTrack, type TrackResponse } from "../api/devices";
+import IntegrityPanel from "../components/device/IntegrityPanel";
 import { useLanguage } from "../context/LanguageContext";
 import {
   Calendar,
@@ -14,6 +15,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Loader2,
+  History,
 } from "lucide-react";
 
 /** Local YYYY-MM-DD. toISOString() would shift the date across timezones. */
@@ -92,6 +94,7 @@ export default function DeviceHistory() {
 
   const summary = track?.summary;
   const hasPoints = (track?.points.length ?? 0) > 0;
+  const backfilled = track?.points.filter((p) => p.is_backfill).length ?? 0;
 
   return (
     <ResponsiveLayout>
@@ -244,6 +247,21 @@ export default function DeviceHistory() {
           </div>
         )}
 
+        {/* Gap-free tracking: say so when part of this range was recovered
+            rather than received live, so nobody wonders why the map filled in
+            after the fact. */}
+        {backfilled > 0 && (
+          <div className="mb-4 flex items-start gap-2 p-3 rounded-control bg-brand-subtle border border-brand/20 text-sm">
+            <History className="w-4 h-4 text-brand shrink-0 mt-0.5" />
+            <span className="text-content-secondary">
+              <strong className="text-brand-ink">{backfilled}</strong> of{" "}
+              {track?.points.length} points were recovered from a coverage gap —
+              buffered on the device and replayed once it reconnected. They are
+              filed at the time they were recorded, not the time they arrived.
+            </span>
+          </div>
+        )}
+
         {/* Map + stop timeline */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-surface rounded-card shadow-sm overflow-hidden">
@@ -272,7 +290,8 @@ export default function DeviceHistory() {
             </div>
           </div>
 
-          {/* Stops */}
+          {/* Stops + integrity */}
+          <div className="space-y-4">
           <div className="bg-surface rounded-card shadow-sm overflow-hidden flex flex-col">
             <div className="px-5 py-3 border-b border-line bg-surface-sunken">
               <h2 className="font-semibold text-content">
@@ -327,6 +346,11 @@ export default function DeviceHistory() {
                 ))
               )}
             </div>
+          </div>
+
+            {serial && hasPoints && (
+              <IntegrityPanel serial={serial} from={from} to={to} />
+            )}
           </div>
         </div>
       </div>

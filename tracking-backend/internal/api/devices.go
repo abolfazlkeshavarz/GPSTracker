@@ -159,7 +159,7 @@ func GetDeviceTrack(c *gin.Context) {
     // One extra row is requested to detect truncation.
     rows, err := db.DB.Query(`
         SELECT lat, lng, speed, satellites, csq, battery, ignition,
-               heading, altitude, hdop, recorded_at
+               heading, altitude, hdop, COALESCE(is_backfill, FALSE), recorded_at
         FROM location_history
         WHERE device_serial = $1
           AND recorded_at >= $2
@@ -182,7 +182,7 @@ func GetDeviceTrack(c *gin.Context) {
 
         if err := rows.Scan(&p.Lat, &p.Lng, &p.Speed, &p.Satellites,
             &p.CSQ, &battery, &ignition,
-            &heading, &altitude, &hdop, &p.RecordedAt); err != nil {
+            &heading, &altitude, &hdop, &p.IsBackfill, &p.RecordedAt); err != nil {
             continue
         }
 

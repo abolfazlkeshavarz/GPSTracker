@@ -91,12 +91,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             to={item.path}
             aria-current={active ? "page" : undefined}
             className={cx(
-              "flex items-center gap-3 px-3 py-2.5 rounded-control text-sm font-medium transition-colors",
+              // min-h-11 = 44px, the touch-target floor. py alone left these
+              // at 40px.
+              "relative flex items-center gap-3 px-3 min-h-11 rounded-control text-sm font-medium",
+              "transition-colors duration-150 cursor-pointer",
               active
                 ? "bg-brand-subtle text-brand-ink"
                 : "text-content-secondary hover:bg-surface-sunken hover:text-content"
             )}
           >
+            {/* A rail as well as a fill: the active item stays identifiable
+                when the tinted background is hard to see. */}
+            {active && (
+              <span className="absolute inset-y-1.5 start-0 w-0.5 rounded-full bg-brand" aria-hidden />
+            )}
             <item.icon className="w-[18px] h-[18px] shrink-0" />
             <span className="truncate">{item.label}</span>
           </Link>
@@ -107,10 +115,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const brand = (
     <div className="flex items-center gap-2.5 px-4 h-16 border-b border-line">
-      <span className="grid place-items-center w-9 h-9 rounded-control bg-brand text-white shrink-0">
+      <span className="grid place-items-center w-9 h-9 rounded-control bg-brand text-white shrink-0 shadow-glow">
         <MapPin className="w-5 h-5" />
       </span>
-      <span className="font-semibold text-content truncate">{t("gps.tracker")}</span>
+      <span className="font-semibold text-content truncate tracking-tight">{t("gps.tracker")}</span>
     </div>
   );
 
@@ -150,6 +158,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <aside
         className={cx(
           "hidden lg:flex fixed inset-y-0 w-64 flex-col bg-surface border-line z-30",
+          "shadow-sm",
           isRTL ? "end-0 border-s" : "start-0 border-e"
         )}
       >
@@ -216,14 +225,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* Content */}
       <div className={cx("min-h-screen flex flex-col", isRTL ? "lg:me-64" : "lg:ms-64")}>
         {/* Desktop top bar */}
-        <div className="hidden lg:flex items-center justify-end gap-3 h-16 px-6 border-b border-line bg-surface/60 backdrop-blur">
+        <div className="hidden lg:flex items-center justify-end gap-3 h-16 px-6 border-b border-line bg-surface/70 backdrop-blur-md sticky top-0 z-20">
           <ConnectionPill />
         </div>
 
         <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-6">{children}</main>
 
         {/* Mobile bottom nav */}
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-surface/95 backdrop-blur border-t border-line">
+        <nav
+          className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-surface/95 backdrop-blur-md border-t border-line"
+          /* Keeps the bar clear of the iOS home indicator. */
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
           <div className="flex items-stretch justify-around">
             {items.map((item) => {
               const active = isActive(item.path);
@@ -233,10 +246,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   to={item.path}
                   aria-current={active ? "page" : undefined}
                   className={cx(
-                    "flex flex-col items-center gap-0.5 flex-1 py-2 text-[11px] font-medium transition-colors",
+                    // min-h-[52px]: keeps the tap target above the 44px floor
+                    // once the label is included.
+                    "relative flex flex-col items-center justify-center gap-0.5 flex-1",
+                    "min-h-[52px] py-2 text-[11px] font-medium transition-colors cursor-pointer",
                     active ? "text-brand" : "text-content-muted"
                   )}
                 >
+                  {active && (
+                    <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand" aria-hidden />
+                  )}
                   <item.icon className="w-5 h-5" />
                   <span className="truncate max-w-full px-1">{item.label}</span>
                 </Link>
@@ -303,11 +322,24 @@ function ConnectionPill({ compact }: { compact?: boolean }) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="flex items-center gap-2 px-3 h-8 rounded-full border border-line text-xs font-medium text-content-secondary">
+      <span
+        /* One atomic status message rather than a bare value, so a screen
+           reader announces something meaningful when the state flips. */
+        role="status"
+        aria-atomic="true"
+        aria-label={`Realtime connection: ${map.label}`}
+        className={cx(
+          "flex items-center gap-2 px-3 h-8 rounded-full border text-xs font-medium",
+          "transition-shadow duration-300",
+          isConnected
+            ? "border-status-good/30 text-content-secondary shadow-glow-good"
+            : "border-line text-content-secondary"
+        )}
+      >
         <StatusDot tone={map.tone} pulse={isConnected} />
         {map.label}
         {isConnected && lastMessageAt && (
-          <span className="text-content-muted hidden xl:inline">
+          <span className="text-content-muted hidden xl:inline tnum">
             · {new Date(lastMessageAt).toLocaleTimeString()}
           </span>
         )}

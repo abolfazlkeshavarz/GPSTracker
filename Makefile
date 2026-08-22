@@ -118,7 +118,7 @@ export DOCKER
 export DB_HOST DB_PORT DB_USER DB_PASSWORD DB_NAME DB_SSLMODE
 export REDIS_HOST REDIS_PORT REDIS_PASSWORD
 export MQTT_BROKER MQTT_USER MQTT_PASSWORD MQTT_TOPIC MQTT_PORT MQTT_HOST
-export JWT_SECRET JWT_EXPIRY_HOURS
+export JWT_SECRET JWT_EXPIRY_HOURS CERT_SIGNING_KEY
 export SERVER_PORT APP_ENV APP_DOMAIN ALLOWED_ORIGINS
 export API_PORT API_URL TILESERVER_PORT
 export SEED_PASSWORD DOCKER PG_CONTAINER REDIS_CONTAINER MQTT_CONTAINER
@@ -133,7 +133,8 @@ SEED_PASSWORD ?= password123
         db-create db-migrate db-seed db-journey db-reset db-shell db-dump db-restore \
         create-admin create-user create-device assign-device list-users list-devices stats \
         run run-frontend stop stop-all build build-backend build-frontend \
-        mqtt-test mqtt-test-bad mqtt-sub \
+        mqtt-test mqtt-test-bad mqtt-sub mqtt-gap mqtt-replay mqtt-legacy \
+        cert-keygen verify-chain cert-verify \
         health test test-all smoke lint fmt tidy \
         deploy-check deploy-db deploy-health
 
@@ -312,8 +313,37 @@ mqtt-test: ## Publish simulated GPS data. [DEVICE=] [SECRET=] [COUNT=] [INTERVAL
 mqtt-test-bad: ## Publish with a wrong secret (should be rejected)
 	@cd $(BACKEND_DIR) && go run ./cmd/mqttsim -bad-secret -count 3 -interval 500ms
 
+mqtt-gap: ## Simulate a coverage gap: live points, outage, then replay [GAP_MINUTES=]
+	@cd $(BACKEND_DIR) && go run ./cmd/mqttsim \
+		-device "$(or $(DEVICE),DEVICEADMIN)" \
+		-secret "$(or $(SECRET),357951)" \
+		-gap-after $(or $(LIVE),3) \
+		-gap-minutes $(or $(GAP_MINUTES),20)
+
+mqtt-replay: ## Re-send the same points twice; duplicates must be ignored
+	@cd $(BACKEND_DIR) && go run ./cmd/mqttsim \
+		-device "$(or $(DEVICE),DEVICEADMIN)" \
+		-secret "$(or $(SECRET),357951)" -replay -count 5 -interval 200ms
+
+mqtt-legacy: ## Publish with the old plaintext secret instead of an HMAC
+	@cd $(BACKEND_DIR) && go run ./cmd/mqttsim \
+		-device "$(or $(DEVICE),DEVICEADMIN)" \
+		-secret "$(or $(SECRET),357951)" -legacy-auth -count 3 -interval 500ms
+
 mqtt-sub: ## Watch every message on the broker
 	@mosquitto_sub -h localhost -p $(MQTT_PORT) -t 'devices/#' -v
+
+# --------------------------------------------------------------- integrity
+cert-keygen: ## Generate the Ed25519 certificate signing key
+	@cd $(BACKEND_DIR) && go run ./cmd/cli cert-keygen
+
+verify-chain: ## Replay a device hash chain. SERIAL=DEVICEADMIN
+	@cd $(BACKEND_DIR) && go run ./cmd/cli verify-chain \
+		-serial "$(or $(SERIAL),DEVICEADMIN)" $(if $(V),-v)
+
+cert-verify: ## Verify a certificate file offline. FILE=certificate.json
+	@test -n "$(FILE)" || { echo "FILE is required: make cert-verify FILE=certificate.json"; exit 1; }
+	@cd $(BACKEND_DIR) && go run ./cmd/cli cert-verify -file "$(abspath $(FILE))" $(if $(PUBKEY),-public-key "$(PUBKEY)")
 
 # ----------------------------------------------------------------- quality
 health: ## Check every service is reachable and healthy

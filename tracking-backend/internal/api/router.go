@@ -49,6 +49,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
     router.POST("/api/register", authLimiter, Register)
     router.POST("/api/login", authLimiter, Login)
 
+    // Public: a third party must be able to verify a certificate without an
+    // account on this system. That is the point of signing asymmetrically.
+    router.GET("/api/certificate-key", GetCertificatePublicKey)
+
     // Health check
     router.GET("/health", func(c *gin.Context) {
         c.JSON(200, gin.H{"status": "ok"})
@@ -65,6 +69,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
         authorized.GET("/devices/:serial/latest", GetLatestLocation)
         authorized.GET("/devices/:serial/history", GetLocationHistory)
         authorized.GET("/devices/:serial/track", GetDeviceTrack)
+
+        // Tamper-evident history
+        authorized.GET("/devices/:serial/verify", GetDeviceChainVerification)
+        authorized.GET("/devices/:serial/certificate", GetDeviceCertificate)
         authorized.GET("/devices/:serial/signal", GetSignalQuality)
         authorized.GET("/devices/:serial/status", GetDeviceStatus)
         

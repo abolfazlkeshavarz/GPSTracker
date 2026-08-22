@@ -58,6 +58,8 @@ export default {
         },
       },
       boxShadow: {
+        glow: 'var(--glow-brand)',
+        'glow-good': 'var(--glow-good)',
         sm: 'var(--shadow-sm)',
         DEFAULT: 'var(--shadow-md)',
         md: 'var(--shadow-md)',
@@ -69,13 +71,28 @@ export default {
         control: '10px',
       },
       fontFamily: {
-        sans: ['Vazirmatn', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        // Inter for Latin, Vazirmatn for Persian. Inter first so Latin text
+        // gets its tighter metrics; Vazirmatn covers the Arabic-script range
+        // Inter does not. Both are self-hosted — the production CSP blocks
+        // external font hosts, so Google Fonts is not an option.
+        sans: ['InterVariable', 'Inter', 'Vazirmatn', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       fontSize: {
-        // Slightly tightened tracking on the large sizes; default Tailwind
-        // display sizes read loose at these weights.
-        'display': ['2rem', { lineHeight: '2.375rem', letterSpacing: '-0.02em' }],
-        'metric': ['1.75rem', { lineHeight: '2.125rem', letterSpacing: '-0.02em' }],
+        // Inter precision scale: negative tracking on display sizes, positive
+        // on small uppercase labels. Inter set at default tracking reads loose
+        // at large sizes and cramped at label sizes.
+        'display': ['1.9375rem', { lineHeight: '2.25rem', letterSpacing: '-0.025em', fontWeight: '650' }],
+        'title': ['1.375rem', { lineHeight: '1.75rem', letterSpacing: '-0.015em' }],
+        'metric': ['1.75rem', { lineHeight: '2rem', letterSpacing: '-0.02em' }],
+        'metric-lg': ['2.25rem', { lineHeight: '2.5rem', letterSpacing: '-0.03em' }],
+        'label': ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0.06em' }],
+      },
+      spacing: {
+        // Density 8/10 (dashboard): the 8-32px rhythm the design system asks
+        // for, as named steps so pages stop picking arbitrary values.
+        'gutter': '1rem',
+        'gutter-lg': '1.5rem',
       },
       keyframes: {
         'fade-in': {
@@ -90,11 +107,23 @@ export default {
           '70%': { transform: 'scale(1.6)', opacity: '0' },
           '100%': { transform: 'scale(1.6)', opacity: '0' },
         },
+        // Standard motion tier (300-450ms) with a slight overshoot, applied
+        // as a CSS stagger rather than pulling in an animation library.
+        'rise-in': {
+          from: { opacity: '0', transform: 'translateY(10px) scale(0.985)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+        sweep: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 220ms ease-out',
         shimmer: 'shimmer 1.6s infinite',
         'pulse-ring': 'pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'rise-in': 'rise-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both',
+        sweep: 'sweep 2.4s ease-in-out infinite',
       },
     },
   },

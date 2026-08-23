@@ -138,6 +138,66 @@ const translations = {
     'register.failed': 'Registration failed',
     'please.enter.serial': 'Please enter a device serial number',
     'please.enter.secret': 'Please enter the device secret key',
+
+    // Alerts
+    'alerts': 'Alerts',
+    'alerts.subtitle': 'Geofence crossings, low battery and connectivity events across your fleet',
+    'no.alerts.yet': 'No alerts yet',
+    'no.alerts.description': "You'll see geofence crossings, low-battery and connectivity events here.",
+    'mark.all.read': 'Mark all read',
+    'mark.read': 'Mark read',
+    'unread': 'Unread',
+    'all': 'All',
+    'alert.geofence_enter': 'Geofence entered',
+    'alert.geofence_exit': 'Geofence exited',
+    'alert.low_battery': 'Low battery',
+    'alert.offline': 'Device offline',
+    'alert.back_online': 'Back online',
+
+    // Account
+    'account': 'Account',
+    'account.subtitle': 'Manage your profile and password',
+    'profile': 'Profile',
+    'phone': 'Phone',
+    'role': 'Role',
+    'member.since': 'Member since',
+    'change.password': 'Change Password',
+    'current.password': 'Current Password',
+    'new.password': 'New Password',
+    'confirm.new.password': 'Confirm New Password',
+    'update.password': 'Update Password',
+    'password.updated': 'Password updated successfully',
+    'passwords.dont.match': 'New passwords do not match',
+    'password.too.short': 'New password must be at least 6 characters',
+
+    // Device customization
+    'rename.device': 'Rename device',
+    'device.name.placeholder': 'e.g. Dad\'s Car',
+    'unnamed.device': 'Unnamed device',
+
+    // Export
+    'export.csv': 'Export CSV',
+    'export.history': 'Export history',
+
+    // Geofences
+    'geofences': 'Geofences',
+    'geofences.subtitle': 'Get alerted the moment this device enters or leaves a zone',
+    'add.geofence': 'Add geofence',
+    'geofence.name': 'Zone name',
+    'geofence.name.placeholder': 'e.g. Home, Office, Warehouse',
+    'radius': 'Radius',
+    'trigger.on': 'Alert on',
+    'trigger.enter': 'Entering',
+    'trigger.exit': 'Leaving',
+    'trigger.both': 'Entering & leaving',
+    'use.current.location': 'Use current location',
+    'no.geofences.yet': 'No geofences yet',
+    'no.geofences.description': 'Add a zone around this device\'s current location to get alerted on crossings.',
+    'active': 'Active',
+    'paused': 'Paused',
+    'pause': 'Pause',
+    'resume': 'Resume',
+    'meters': 'm',
   },
   fa: {
     // Common
@@ -266,6 +326,66 @@ const translations = {
     'register.failed': 'ثبت‌نام ناموفق بود',
     'please.enter.serial': 'لطفاً شماره سریال دستگاه را وارد کنید',
     'please.enter.secret': 'لطفاً کلید دستگاه را وارد کنید',
+
+    // Alerts
+    'alerts': 'هشدارها',
+    'alerts.subtitle': 'رویدادهای ورود و خروج از محدوده، باتری کم و قطعی اتصال در ناوگان شما',
+    'no.alerts.yet': 'هنوز هشداری وجود ندارد',
+    'no.alerts.description': 'رویدادهای ورود و خروج از محدوده، باتری کم و اتصال در اینجا نمایش داده می‌شوند.',
+    'mark.all.read': 'علامت‌گذاری همه به‌عنوان خوانده‌شده',
+    'mark.read': 'خوانده شد',
+    'unread': 'خوانده‌نشده',
+    'all': 'همه',
+    'alert.geofence_enter': 'ورود به محدوده',
+    'alert.geofence_exit': 'خروج از محدوده',
+    'alert.low_battery': 'باتری کم',
+    'alert.offline': 'دستگاه آفلاین شد',
+    'alert.back_online': 'بازگشت به آنلاین',
+
+    // Account
+    'account': 'حساب کاربری',
+    'account.subtitle': 'مدیریت پروفایل و رمز عبور خود',
+    'profile': 'پروفایل',
+    'phone': 'شماره تلفن',
+    'role': 'نقش',
+    'member.since': 'عضویت از',
+    'change.password': 'تغییر رمز عبور',
+    'current.password': 'رمز عبور فعلی',
+    'new.password': 'رمز عبور جدید',
+    'confirm.new.password': 'تکرار رمز عبور جدید',
+    'update.password': 'به‌روزرسانی رمز عبور',
+    'password.updated': 'رمز عبور با موفقیت به‌روزرسانی شد',
+    'passwords.dont.match': 'رمزهای عبور جدید یکسان نیستند',
+    'password.too.short': 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد',
+
+    // Device customization
+    'rename.device': 'تغییر نام دستگاه',
+    'device.name.placeholder': 'مثال: ماشین بابا',
+    'unnamed.device': 'دستگاه بدون نام',
+
+    // Export
+    'export.csv': 'خروجی CSV',
+    'export.history': 'خروجی تاریخچه',
+
+    // Geofences
+    'geofences': 'محدوده‌های جغرافیایی',
+    'geofences.subtitle': 'به‌محض ورود یا خروج این دستگاه از یک محدوده مطلع شوید',
+    'add.geofence': 'افزودن محدوده',
+    'geofence.name': 'نام محدوده',
+    'geofence.name.placeholder': 'مثال: خانه، محل کار، انبار',
+    'radius': 'شعاع',
+    'trigger.on': 'هشدار هنگام',
+    'trigger.enter': 'ورود',
+    'trigger.exit': 'خروج',
+    'trigger.both': 'ورود و خروج',
+    'use.current.location': 'استفاده از موقعیت فعلی',
+    'no.geofences.yet': 'هنوز محدوده‌ای تعریف نشده است',
+    'no.geofences.description': 'برای دریافت هشدار، محدوده‌ای اطراف موقعیت فعلی این دستگاه اضافه کنید.',
+    'active': 'فعال',
+    'paused': 'متوقف‌شده',
+    'pause': 'توقف',
+    'resume': 'ازسرگیری',
+    'meters': 'متر',
   }
 };
 

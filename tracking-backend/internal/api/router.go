@@ -75,7 +75,28 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
         authorized.GET("/devices/:serial/certificate", GetDeviceCertificate)
         authorized.GET("/devices/:serial/signal", GetSignalQuality)
         authorized.GET("/devices/:serial/status", GetDeviceStatus)
-        
+
+        // Data export
+        authorized.GET("/devices/:serial/export.csv", ExportDeviceHistoryCSV)
+
+        // Device customization
+        authorized.PUT("/devices/:serial/name", RenameDevice)
+
+        // Geofencing
+        authorized.GET("/devices/:serial/geofences", ListGeofences)
+        authorized.POST("/devices/:serial/geofences", CreateGeofence)
+        authorized.PUT("/devices/:serial/geofences/:id", UpdateGeofence)
+        authorized.DELETE("/devices/:serial/geofences/:id", DeleteGeofence)
+
+        // Alerts
+        authorized.GET("/alerts", ListAlerts)
+        authorized.POST("/alerts/:id/read", MarkAlertRead)
+        authorized.POST("/alerts/read-all", MarkAllAlertsRead)
+
+        // Self-service account management
+        authorized.GET("/me", GetMe)
+        authorized.PUT("/me/password", ChangeMyPassword)
+
         // WebSocket connections
         authorized.GET("/ws", HandleWebSocket)
         authorized.GET("/ws/device/:serial", HandleDeviceWebSocket)

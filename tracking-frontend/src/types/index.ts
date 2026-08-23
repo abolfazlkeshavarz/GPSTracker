@@ -6,6 +6,7 @@ export interface User {
 
 export interface Device {
   serial: string;
+  name?: string;
   user_id: number;
   activated_at: string;
 }

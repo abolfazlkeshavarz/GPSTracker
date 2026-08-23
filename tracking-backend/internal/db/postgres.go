@@ -146,6 +146,58 @@ func createTables() error {
             updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )`,
 
+		// --- naming --------------------------------------------------------
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS name VARCHAR(80)`,
+
+		// --- geofences -------------------------------------------------------
+		`CREATE TABLE IF NOT EXISTS geofences (
+            id BIGSERIAL PRIMARY KEY,
+            device_serial VARCHAR(50) NOT NULL REFERENCES devices(serial) ON DELETE CASCADE,
+            name VARCHAR(80) NOT NULL,
+            lat DOUBLE PRECISION NOT NULL,
+            lng DOUBLE PRECISION NOT NULL,
+            radius_m INTEGER NOT NULL CHECK (radius_m BETWEEN 20 AND 50000),
+            trigger_on VARCHAR(10) NOT NULL DEFAULT 'both'
+                CHECK (trigger_on IN ('enter', 'exit', 'both')),
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_by INT REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )`,
+
+		`CREATE INDEX IF NOT EXISTS idx_geofences_device ON geofences(device_serial) WHERE is_active`,
+
+		`CREATE TABLE IF NOT EXISTS geofence_state (
+            geofence_id BIGINT PRIMARY KEY REFERENCES geofences(id) ON DELETE CASCADE,
+            is_inside BOOLEAN NOT NULL,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )`,
+
+		// --- alerts ----------------------------------------------------------
+		`CREATE TABLE IF NOT EXISTS alerts (
+            id BIGSERIAL PRIMARY KEY,
+            device_serial VARCHAR(50) NOT NULL REFERENCES devices(serial) ON DELETE CASCADE,
+            user_id INT REFERENCES users(id) ON DELETE CASCADE,
+            kind VARCHAR(20) NOT NULL
+                CHECK (kind IN ('geofence_enter', 'geofence_exit', 'low_battery', 'offline', 'back_online')),
+            title VARCHAR(120) NOT NULL,
+            detail VARCHAR(400),
+            lat DOUBLE PRECISION,
+            lng DOUBLE PRECISION,
+            geofence_id BIGINT REFERENCES geofences(id) ON DELETE SET NULL,
+            is_read BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )`,
+
+		`CREATE INDEX IF NOT EXISTS idx_alerts_user_time ON alerts(user_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_alerts_user_unread ON alerts(user_id) WHERE NOT is_read`,
+
+		`CREATE TABLE IF NOT EXISTS device_alert_state (
+            device_serial VARCHAR(50) PRIMARY KEY REFERENCES devices(serial) ON DELETE CASCADE,
+            last_battery_alert TIMESTAMP WITH TIME ZONE,
+            last_offline_alert TIMESTAMP WITH TIME ZONE,
+            was_online BOOLEAN NOT NULL DEFAULT TRUE
+        )`,
+
 		`CREATE INDEX IF NOT EXISTS idx_location_history_device_time
             ON location_history(device_serial, recorded_at DESC)`,
 

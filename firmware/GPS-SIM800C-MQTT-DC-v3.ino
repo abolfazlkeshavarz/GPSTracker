@@ -33,13 +33,25 @@
 #include <mbedtls/md.h>
 
 // ====================== PIN DEFINITIONS ======================
-#define GPS_RX 14
-#define GPS_TX 15
+//
+// Assigned for ESP32-S3-WROOM-1 on carrier RG-CARR-01 (see hardware/README.md).
+//
+// The previous values were classic-ESP32 pins and one of them does not exist on
+// this module: WROOM-1 breaks out IO0-IO21, IO35-IO42 and IO45-IO48 only, so the
+// old IGNITION_PIN 34 could never be read. The UART pins also moved clear of
+// IO19/IO20 (native USB) and IO35-IO37 (octal PSRAM on -R8 parts), so USB
+// flashing and a PSRAM variant both stay available.
 
-#define SIM_RX 13
-#define SIM_TX 12
+#define GPS_RX 17          // ESP32 RX  <- NEO-6M TX
+#define GPS_TX 18          // ESP32 TX  -> NEO-6M RX
 
-#define IGNITION_PIN 34
+#define SIM_RX 5           // ESP32 RX  <- SIM800C TXD (2.8 V clears S3 VIH)
+#define SIM_TX 4           // ESP32 TX  -> SIM800C RXD (through 1k/2.7k divider)
+
+// Ignition sense, via a 100k/22k divider from the 12 V accessory line.
+// Must be an ADC1 pin (GPIO1-10): ADC2 is unusable whenever WiFi is active,
+// which would make this read correctly only while the radio happened to be off.
+#define IGNITION_PIN 1
 #define IGNITION_ACTIVE_LOW false
 
 // ====================== SERIALS ======================

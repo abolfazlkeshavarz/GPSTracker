@@ -46,6 +46,11 @@ func main() {
         cfg.MQTTTopic,
     )
 
+    // Offline/back-online alerts have no triggering message to hook, so they
+    // are polled. 60s keeps the delay before an alert fires short without
+    // hammering Postgres with a full-device-table scan.
+    go mqtt.StartOfflineSweeper(db.DB, db.RedisClient, 60*time.Second)
+
     router := api.SetupRouter(cfg)
 
     srv := &http.Server{
@@ -83,6 +88,7 @@ func main() {
     }
 
     mqtt.StopSubscriber()
+    mqtt.StopOfflineSweeper()
 
     log.Println("Shutdown complete")
 }

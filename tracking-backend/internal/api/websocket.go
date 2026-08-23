@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"tracking-backend/internal/db"
@@ -85,11 +86,13 @@ func closeGracefully(conn *websocket.Conn, code int, reason string) {
 	)
 }
 
-// streamDeviceUpdates relays Redis pubsub messages to conn for as long as the
-// connection is healthy. shouldSend decides which device payloads belong to
-// this subscriber.
-func streamDeviceUpdates(conn *websocket.Conn, shouldSend func(serial string) bool) {
-	pubsub := db.RedisClient.Subscribe(db.Ctx, "device_updates")
+// streamRedisChannels relays messages from one or more Redis pubsub channels
+// to conn for as long as the connection is healthy. shouldSend decides
+// whether a given decoded payload should reach this particular client — e.g.
+// "is this device one I own", or unconditionally true when the channel is
+// already scoped to this user, as user_alerts:<id> is.
+func streamRedisChannels(conn *websocket.Conn, shouldSend func(payload map[string]interface{}) bool, channels ...string) {
+	pubsub := db.RedisClient.Subscribe(db.Ctx, channels...)
 	defer pubsub.Close()
 
 	// Whatever ends the loop below, the peer gets a proper close frame.
@@ -114,13 +117,12 @@ func streamDeviceUpdates(conn *websocket.Conn, shouldSend func(serial string) bo
 				return
 			}
 
-			var location map[string]interface{}
-			if err := json.Unmarshal([]byte(msg.Payload), &location); err != nil {
+			var payload map[string]interface{}
+			if err := json.Unmarshal([]byte(msg.Payload), &payload); err != nil {
 				continue
 			}
 
-			device, _ := location["device"].(string)
-			if device == "" || !shouldSend(device) {
+			if !shouldSend(payload) {
 				continue
 			}
 
@@ -184,9 +186,18 @@ func HandleWebSocket(c *gin.Context) {
 		return
 	}
 
-	streamDeviceUpdates(conn, func(serial string) bool {
-		return userDevices[serial]
-	})
+	// One socket, two feeds: this user's device locations plus their own
+	// alert stream. user_alerts:<id> is already scoped to this user by how
+	// it is published (see insertAlert in internal/mqtt/geofence.go), so any
+	// message on it is admitted unconditionally; device_updates carries
+	// every device on the system and still needs the ownership check.
+	streamRedisChannels(conn, func(payload map[string]interface{}) bool {
+		if payload["type"] == "alert" {
+			return true
+		}
+		device, _ := payload["device"].(string)
+		return device != "" && userDevices[device]
+	}, "device_updates", "user_alerts:"+strconv.Itoa(userID))
 }
 
 func HandleDeviceWebSocket(c *gin.Context) {
@@ -209,7 +220,8 @@ func HandleDeviceWebSocket(c *gin.Context) {
 	log.Printf("User %d subscribed to device %s via WebSocket", userID, serial)
 	defer log.Printf("User %d unsubscribed from device %s", userID, serial)
 
-	streamDeviceUpdates(conn, func(device string) bool {
+	streamRedisChannels(conn, func(payload map[string]interface{}) bool {
+		device, _ := payload["device"].(string)
 		return device == serial
-	})
+	}, "device_updates")
 }

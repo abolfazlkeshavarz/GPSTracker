@@ -49,7 +49,21 @@ export interface DeviceUpdate {
   [key: string]: unknown;
 }
 
+/** A live alert pushed over user_alerts:<id> — see internal/mqtt/geofence.go. */
+export interface AlertMessage {
+  type: "alert";
+  id: number;
+  device_serial: string;
+  kind: string;
+  title: string;
+  detail?: string;
+  lat?: number;
+  lng?: number;
+  created_at: string;
+}
+
 type Listener = (update: DeviceUpdate) => void;
+type AlertListener = (alert: AlertMessage) => void;
 
 interface RealtimeState {
   status: ConnectionState;
@@ -59,6 +73,8 @@ interface RealtimeState {
   lastMessageAt: number | null;
   /** Subscribe to device updates; returns an unsubscribe function. */
   subscribe: (listener: Listener) => () => void;
+  /** Subscribe to this user's live alerts; returns an unsubscribe function. */
+  subscribeAlerts: (listener: AlertListener) => () => void;
   /** Force an immediate reconnect (used by the "retry" affordance). */
   reconnect: () => void;
 }
@@ -86,11 +102,19 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
   // A Set, so two pages can listen at once without clobbering each other.
   const listenersRef = useRef<Set<Listener>>(new Set());
+  const alertListenersRef = useRef<Set<AlertListener>>(new Set());
 
   const subscribe = useCallback((listener: Listener) => {
     listenersRef.current.add(listener);
     return () => {
       listenersRef.current.delete(listener);
+    };
+  }, []);
+
+  const subscribeAlerts = useCallback((listener: AlertListener) => {
+    alertListenersRef.current.add(listener);
+    return () => {
+      alertListenersRef.current.delete(listener);
     };
   }, []);
 
@@ -193,6 +217,18 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
       if (data?.type === "connected") return; // handshake ack
 
+      if (data?.type === "alert") {
+        // Copy before iterating: a listener may unsubscribe during dispatch.
+        for (const listener of Array.from(alertListenersRef.current)) {
+          try {
+            listener(data as AlertMessage);
+          } catch (err) {
+            console.error("realtime alert listener threw:", err);
+          }
+        }
+        return;
+      }
+
       if (typeof data?.device === "string") {
         setLastMessageAt(Date.now());
         // Copy before iterating: a listener may unsubscribe during dispatch.
@@ -275,9 +311,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       isConnected: status === "open",
       lastMessageAt,
       subscribe,
+      subscribeAlerts,
       reconnect,
     }),
-    [status, lastMessageAt, subscribe, reconnect]
+    [status, lastMessageAt, subscribe, subscribeAlerts, reconnect]
   );
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
@@ -308,5 +345,23 @@ export function useDeviceUpdates(onUpdate: (update: DeviceUpdate) => void) {
   useEffect(
     () => subscribe((update) => handlerRef.current(update)),
     [subscribe]
+  );
+}
+
+/**
+ * Subscribes to this user's live alerts for the lifetime of the calling
+ * component — geofence crossings, low battery, offline/back-online.
+ */
+export function useAlertUpdates(onAlert: (alert: AlertMessage) => void) {
+  const { subscribeAlerts } = useRealtime();
+  const handlerRef = useRef(onAlert);
+
+  useEffect(() => {
+    handlerRef.current = onAlert;
+  }, [onAlert]);
+
+  useEffect(
+    () => subscribeAlerts((alert) => handlerRef.current(alert)),
+    [subscribeAlerts]
   );
 }

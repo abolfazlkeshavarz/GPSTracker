@@ -120,11 +120,12 @@ func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) 
 	// ADDED: Mark device online
 
 	var storedSecret string
+	var ownerUserID sql.NullInt64
 
 	err := pg.QueryRow(
-		"SELECT device_secret FROM devices WHERE serial=$1",
+		"SELECT device_secret, user_id FROM devices WHERE serial=$1",
 		loc.Device,
-	).Scan(&storedSecret)
+	).Scan(&storedSecret, &ownerUserID)
 
 	if err != nil {
 		log.Printf("Unknown device: %s", loc.Device)
@@ -163,8 +164,17 @@ func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) 
 
 	// Only a point that is actually current means the device is online. A
 	// replayed point from an hour ago says nothing about right now.
+	//
+	// Alerts are evaluated on live points only, for the same reason backfill
+	// never touches the "latest" key: a geofence crossing or a low-battery
+	// reading forty minutes in the past is not something a user should be
+	// paged about right now.
 	if !isBackfill {
 		services.SetDeviceOnline(loc.Device)
+
+		if ownerUserID.Valid {
+			evaluateAlerts(pg, rdb, ownerUserID.Int64, loc.Device, loc.Lat, loc.Lng, loc.Battery)
+		}
 	}
 
 	// Prepare location for Redis

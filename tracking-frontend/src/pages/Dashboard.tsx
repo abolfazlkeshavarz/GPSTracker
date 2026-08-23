@@ -40,6 +40,7 @@ const LIVE_WINDOW_MS = 90_000;
 
 interface DeviceRow {
   serial: string;
+  name?: string;
   activated_at?: string;
   is_active?: boolean;
   location: any | null;
@@ -236,21 +237,32 @@ function DeviceCard({ device, t }: { device: DeviceRow & { live: boolean }; t: (
   const battery = typeof loc?.battery === "number" ? loc.battery : null;
   const csq = typeof loc?.csq === "number" ? loc.csq : null;
   const sats = loc?.sat ?? loc?.satellites ?? null;
+  const battTone = batteryTone(battery);
+  const displayName = device.name?.trim() || device.serial;
+
+  // The rail colour is the one place status is visible at a glance before
+  // reading anything — critical battery outranks "live", since a dying
+  // tracker is the more urgent thing to notice.
+  const railTone = battTone === "critical" ? "bg-status-critical" : device.live ? "bg-status-good" : "bg-content-muted/30";
 
   return (
     <Link to={`/device/${device.serial}`} className="group block cursor-pointer">
       <Card
+        flush
         className={cx(
-          "h-full transition-all duration-200",
+          "h-full relative overflow-hidden transition-all duration-200",
           "group-hover:-translate-y-0.5 group-hover:shadow-lg group-hover:border-brand/40",
           device.live && "shadow-glow-good"
         )}
       >
+        <span className={cx("absolute inset-x-0 top-0 h-1", railTone)} aria-hidden />
+
+        <div className="p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
-            <p className="font-semibold text-content font-mono text-sm truncate">{device.serial}</p>
-            <p className="text-xs text-content-muted mt-0.5">
-              {device.lastFixAt ? new Date(device.lastFixAt).toLocaleTimeString() : t("no.data.yet")}
+            <p className="font-semibold text-content truncate">{displayName}</p>
+            <p className="text-xs text-content-muted font-mono mt-0.5 truncate">
+              {device.name?.trim() ? device.serial : (device.lastFixAt ? new Date(device.lastFixAt).toLocaleTimeString() : t("no.data.yet"))}
             </p>
           </div>
 
@@ -284,6 +296,7 @@ function DeviceCard({ device, t }: { device: DeviceRow & { live: boolean }; t: (
         ) : (
           <p className="text-sm text-content-muted py-6 text-center">{t("no.data.yet")}</p>
         )}
+        </div>
       </Card>
     </Link>
   );

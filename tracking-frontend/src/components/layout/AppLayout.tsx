@@ -14,12 +14,16 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
+  Bell,
+  UserCircle,
 } from "lucide-react";
 
 import { useAuthStore } from "../../store/authStore";
 import { useLanguage } from "../../context/LanguageContext";
 import { useTheme } from "../../context/ThemeContext";
-import { useRealtime } from "../../context/RealtimeContext";
+import { useAlertUpdates, useRealtime } from "../../context/RealtimeContext";
+import { listAlerts } from "../../api/alerts";
+import { useAlertCountStore } from "../../store/alertCountStore";
 import LanguageSwitcher from "../LanguageSwitcher";
 import { Button, StatusDot, cx } from "../ui";
 
@@ -40,6 +44,31 @@ interface NavItem {
   label: string;
   icon: typeof LayoutDashboard;
   adminOnly?: boolean;
+  badge?: number;
+}
+
+/**
+ * Tracks the caller's unread-alert count for the nav badge.
+ *
+ * Backed by a shared store (see store/alertCountStore.ts) rather than local
+ * state: the Alerts page decrements it directly when something is marked
+ * read, so the badge updates immediately without waiting for a navigation
+ * to trigger a refetch. This hook's own job is just the initial sync and
+ * live increments over the same WebSocket every other page already uses.
+ */
+function useUnreadAlertCount() {
+  const { unreadCount, setCount, increment } = useAlertCountStore();
+
+  useEffect(() => {
+    listAlerts({ unreadOnly: true, limit: 1 })
+      .then((data) => setCount(data.unread_count))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useAlertUpdates(() => increment());
+
+  return unreadCount;
 }
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -47,6 +76,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { logout, user } = useAuthStore();
   const { t, isRTL } = useLanguage();
+  const unreadAlerts = useUnreadAlertCount();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -69,7 +99,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const items: NavItem[] = [
     { path: "/dashboard", label: t("dashboard"), icon: LayoutDashboard },
+    { path: "/alerts", label: t("alerts"), icon: Bell, badge: unreadAlerts },
     { path: "/activate", label: t("activate.device"), icon: PlusCircle },
+    { path: "/account", label: t("account"), icon: UserCircle },
     { path: "/admin", label: "Admin Panel", icon: Shield, adminOnly: true },
   ].filter((i) => !i.adminOnly || user?.role === "admin") as NavItem[];
 
@@ -105,8 +137,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             {active && (
               <span className="absolute inset-y-1.5 start-0 w-0.5 rounded-full bg-brand" aria-hidden />
             )}
-            <item.icon className="w-[18px] h-[18px] shrink-0" />
+            <span className="relative shrink-0">
+              <item.icon className="w-[18px] h-[18px]" />
+              {!!item.badge && (
+                <span
+                  className="absolute -top-1.5 -end-1.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-brand text-white text-[9px] font-semibold grid place-items-center tnum"
+                  aria-hidden
+                >
+                  {item.badge > 9 ? "9+" : item.badge}
+                </span>
+              )}
+            </span>
             <span className="truncate">{item.label}</span>
+            {!!item.badge && <span className="sr-only">{`, ${item.badge} unread`}</span>}
           </Link>
         );
       })}
@@ -256,7 +299,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   {active && (
                     <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand" aria-hidden />
                   )}
-                  <item.icon className="w-5 h-5" />
+                  <span className="relative">
+                    <item.icon className="w-5 h-5" />
+                    {!!item.badge && (
+                      <span
+                        className="absolute -top-1 -end-1.5 min-w-[1rem] h-4 px-1 rounded-full bg-brand text-white text-[9px] font-semibold grid place-items-center tnum"
+                        aria-hidden
+                      >
+                        {item.badge > 9 ? "9+" : item.badge}
+                      </span>
+                    )}
+                  </span>
                   <span className="truncate max-w-full px-1">{item.label}</span>
                 </Link>
               );

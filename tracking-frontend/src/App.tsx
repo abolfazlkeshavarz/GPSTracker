@@ -7,6 +7,8 @@ import DeviceDetails from "./pages/DeviceDetails";
 import DeviceHistory from "./pages/DeviceHistory";
 import ActivateDevice from "./pages/ActivateDevice";
 import AdminPanel from "./pages/AdminPanel";
+import Alerts from "./pages/Alerts";
+import Account from "./pages/Account";
 import { useAuthStore } from "./store/authStore";
 import { isTokenExpired } from "./lib/token";
 
@@ -91,6 +93,24 @@ function App() {
         element={
           <RequireAuth>
             <ActivateDevice />
+          </RequireAuth>
+        }
+      />
+
+      <Route
+        path="/alerts"
+        element={
+          <RequireAuth>
+            <Alerts />
+          </RequireAuth>
+        }
+      />
+
+      <Route
+        path="/account"
+        element={
+          <RequireAuth>
+            <Account />
           </RequireAuth>
         }
       />

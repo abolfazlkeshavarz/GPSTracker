@@ -137,6 +137,77 @@ CREATE TABLE IF NOT EXISTS device_chain (
     updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- --------------------------------------------------------------- naming
+-- A human name for a device. Every device otherwise shows only its raw
+-- serial, which is exactly the complaint about cheap trackers: nobody wants
+-- to read "TRACKER-004" when they mean "Dad's Car".
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS name VARCHAR(80);
+
+-- ------------------------------------------------------------ geofences
+-- Circular zones. A circle needs only a centre and radius to check against a
+-- point, which keeps violation detection on the MQTT ingest path a single
+-- comparison per fence per point - important, since that path runs on every
+-- message from every device.
+CREATE TABLE IF NOT EXISTS geofences (
+    id            BIGSERIAL PRIMARY KEY,
+    device_serial VARCHAR(50) NOT NULL REFERENCES devices(serial) ON DELETE CASCADE,
+    name          VARCHAR(80) NOT NULL,
+    lat           DOUBLE PRECISION NOT NULL,
+    lng           DOUBLE PRECISION NOT NULL,
+    radius_m      INTEGER NOT NULL CHECK (radius_m BETWEEN 20 AND 50000),
+    -- 'enter', 'exit', or 'both' - which crossing direction raises an alert.
+    trigger_on    VARCHAR(10) NOT NULL DEFAULT 'both'
+                  CHECK (trigger_on IN ('enter', 'exit', 'both')),
+    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by    INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_geofences_device ON geofences(device_serial) WHERE is_active;
+
+-- Last known inside/outside state per (device, geofence), so a crossing is
+-- detected on the transition rather than re-alerting on every single point
+-- a device reports while sitting inside a zone.
+CREATE TABLE IF NOT EXISTS geofence_state (
+    geofence_id BIGINT PRIMARY KEY REFERENCES geofences(id) ON DELETE CASCADE,
+    is_inside   BOOLEAN NOT NULL,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------------- alerts
+-- One event log for everything a user might want to be told about:
+-- geofence crossings, a battery below threshold, a device that has gone
+-- silent. Unified rather than one-off push notifications, so a user can
+-- come back a day later and see what happened while they were away - most
+-- consumer trackers only ever push, they never let you review the history.
+CREATE TABLE IF NOT EXISTS alerts (
+    id            BIGSERIAL PRIMARY KEY,
+    device_serial VARCHAR(50) NOT NULL REFERENCES devices(serial) ON DELETE CASCADE,
+    user_id       INT REFERENCES users(id) ON DELETE CASCADE,
+    kind          VARCHAR(20) NOT NULL
+                  CHECK (kind IN ('geofence_enter', 'geofence_exit', 'low_battery', 'offline', 'back_online')),
+    title         VARCHAR(120) NOT NULL,
+    detail        VARCHAR(400),
+    lat           DOUBLE PRECISION,
+    lng           DOUBLE PRECISION,
+    geofence_id   BIGINT REFERENCES geofences(id) ON DELETE SET NULL,
+    is_read       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_alerts_user_time ON alerts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_user_unread ON alerts(user_id) WHERE NOT is_read;
+
+-- Debounces "device offline" alerts: without a last-fired timestamp, a
+-- device that flaps between online/offline near the timeout would generate
+-- one alert per flap.
+CREATE TABLE IF NOT EXISTS device_alert_state (
+    device_serial      VARCHAR(50) PRIMARY KEY REFERENCES devices(serial) ON DELETE CASCADE,
+    last_battery_alert TIMESTAMP WITH TIME ZONE,
+    last_offline_alert TIMESTAMP WITH TIME ZONE,
+    was_online         BOOLEAN NOT NULL DEFAULT TRUE
+);
+
 -- ------------------------------------------------------------- indexes
 CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
 CREATE INDEX IF NOT EXISTS idx_devices_serial_active ON devices(serial, is_active);

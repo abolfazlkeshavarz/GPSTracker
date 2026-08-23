@@ -1,23 +1,29 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertCircle,
   BatteryMedium,
+  Check,
   Clock,
+  Download,
   Gauge,
   History,
   MapPin,
   Navigation,
+  Pencil,
   Satellite,
   Signal,
+  X,
   Zap,
 } from "lucide-react";
 
 import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import LiveMap from "../components/map/LiveMap";
+import GeofencePanel from "../components/device/GeofencePanel";
 import { useLanguage } from "../context/LanguageContext";
 import { useDeviceUpdates } from "../context/RealtimeContext";
-import { getLatestLocation } from "../api/devices";
+import { getDevices, getLatestLocation } from "../api/devices";
+import { downloadHistoryCSV, renameDevice } from "../api/account";
 import {
   Badge,
   Button,
@@ -39,6 +45,8 @@ export default function DeviceDetails() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(false);
+  const [deviceName, setDeviceName] = useState<string>("");
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     if (!serial) return;
@@ -57,6 +65,30 @@ export default function DeviceDetails() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!serial) return;
+    getDevices()
+      .then((data) => {
+        const match = (data?.devices ?? []).find((d: any) => d.serial === serial);
+        setDeviceName(match?.name?.trim() || "");
+      })
+      .catch(() => {});
+  }, [serial]);
+
+  const handleExport = async () => {
+    if (!serial) return;
+    setExporting(true);
+    try {
+      await downloadHistoryCSV(serial);
+    } catch {
+      // The export just doesn't start; nothing left in a broken state to
+      // recover from — a silent no-op beats interrupting the page with an
+      // alert() for what is a best-effort convenience action.
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useDeviceUpdates((update) => {
     if (update.device !== serial) return;
@@ -118,13 +150,28 @@ export default function DeviceDetails() {
   return (
     <ResponsiveLayout>
       <PageHeading
-        title={t("device.details")}
-        subtitle={serial}
+        title={
+          <RenameableTitle
+            serial={serial || ""}
+            name={deviceName}
+            t={t}
+            onRenamed={(name) => setDeviceName(name)}
+          />
+        }
+        subtitle={deviceName ? serial : t("device.details")}
         actions={
           <>
             <Badge tone={live ? "good" : "neutral"} icon={<StatusDot tone={live ? "good" : "neutral"} pulse={live} />}>
               {live ? t("live.updates") : "Idle"}
             </Badge>
+            <Button
+              variant="secondary"
+              onClick={handleExport}
+              loading={exporting}
+              icon={<Download className="w-4 h-4" />}
+            >
+              {t("export.csv")}
+            </Button>
             <Link to={`/device/${serial}/history`}>
               <Button variant="secondary" icon={<History className="w-4 h-4" />}>
                 {t("view.history")}
@@ -267,6 +314,10 @@ export default function DeviceDetails() {
           </Card>
         </div>
       </div>
+
+      <div className="mt-4 lg:mt-6">
+        <GeofencePanel serial={serial || ""} currentLat={location.lat} currentLng={location.lng} />
+      </div>
     </ResponsiveLayout>
   );
 }
@@ -277,6 +328,87 @@ function Row({ label, value, mono }: { label: string; value: React.ReactNode; mo
       <dt className="text-sm text-content-muted">{label}</dt>
       <dd className={`text-sm font-medium text-content ${mono ? "font-mono text-xs" : ""}`}>{value}</dd>
     </div>
+  );
+}
+
+/** Inline device-name editor shown in the page title. */
+function RenameableTitle({
+  serial,
+  name,
+  t,
+  onRenamed,
+}: {
+  serial: string;
+  name: string;
+  t: (k: string) => string;
+  onRenamed: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(name);
+  }, [name]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await renameDevice(serial, draft.trim());
+      onRenamed(draft.trim());
+      setEditing(false);
+    } catch {
+      // Leave the field open so the user can retry or cancel.
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSubmit} className="flex items-center gap-2">
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={t("device.name.placeholder")}
+          className="h-9 px-2.5 rounded-control bg-surface border border-line text-content text-lg font-semibold focus:border-brand transition-colors"
+          maxLength={80}
+        />
+        <button
+          type="submit"
+          disabled={saving}
+          aria-label={t("save")}
+          className="grid place-items-center w-8 h-8 rounded-control text-status-good hover:bg-status-good/10 cursor-pointer disabled:opacity-50"
+        >
+          <Check className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(name);
+            setEditing(false);
+          }}
+          aria-label={t("cancel")}
+          className="grid place-items-center w-8 h-8 rounded-control text-content-muted hover:bg-surface-sunken cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </form>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="group flex items-center gap-2 text-start cursor-pointer"
+      aria-label={t("rename.device")}
+    >
+      <span className="text-display text-content">{name || serial}</span>
+      <Pencil className="w-4 h-4 text-content-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+    </button>
   );
 }
 

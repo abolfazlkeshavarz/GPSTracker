@@ -237,7 +237,7 @@ func GetUserDevices(c *gin.Context) {
     // is_active was missing from the projection, so every device came back
     // marked inactive regardless of its real state.
     rows, err := db.DB.Query(`
-        SELECT serial, is_active, activated_at
+        SELECT serial, COALESCE(name, ''), is_active, activated_at
         FROM devices
         WHERE user_id=$1
         ORDER BY activated_at DESC NULLS LAST`,
@@ -254,7 +254,7 @@ func GetUserDevices(c *gin.Context) {
         var device models.Device
         var activatedAt sql.NullTime
 
-        if err := rows.Scan(&device.Serial, &device.IsActive, &activatedAt); err != nil {
+        if err := rows.Scan(&device.Serial, &device.Name, &device.IsActive, &activatedAt); err != nil {
             continue
         }
 

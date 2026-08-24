@@ -10,7 +10,7 @@ import {
   SignalZero,
 } from "lucide-react";
 
-import { verifyChain, certificateUrl, type ChainVerification } from "../../api/devices";
+import { verifyChain, downloadCertificate, type ChainVerification } from "../../api/devices";
 import { Badge, Button, Card, CardHeader, Skeleton, cx } from "../ui";
 
 /*
@@ -38,6 +38,18 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
   const [result, setResult] = useState<ChainVerification | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      await downloadCertificate(serial, from, to);
+    } catch {
+      // Best-effort convenience action; nothing left in a broken state.
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const run = useCallback(async () => {
     try {
@@ -145,12 +157,15 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
             )}
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              {/* A plain link, not fetch(): the browser should save the file. */}
-              <a href={certificateUrl(serial, from, to)} download>
-                <Button size="sm" variant="secondary" icon={<Download className="w-3.5 h-3.5" />}>
-                  Download certificate
-                </Button>
-              </a>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleDownload}
+                loading={downloading}
+                icon={<Download className="w-3.5 h-3.5" />}
+              >
+                Download certificate
+              </Button>
 
               <a
                 href="/api/certificate-key"

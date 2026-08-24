@@ -138,14 +138,35 @@ export const verifyChain = async (
 };
 
 /**
- * URL of the signed trip certificate.
+ * Downloads the signed trip certificate and saves it through the browser.
  *
- * Returned as a URL rather than fetched, so the browser downloads it directly
- * — the document is meant to be kept and handed to someone else.
+ * The endpoint sits behind AuthMiddleware, which only reads the token from
+ * the `Authorization` header — a plain `<a href download>` hits it with no
+ * credentials and gets a 401 (which is what "File wasn't available on site"
+ * in the browser's download manager actually means here). Fetching through
+ * the authenticated axios instance and handing the browser a Blob URL gets
+ * the same "save a file" UX while actually carrying the session token —
+ * the same pattern used for CSV export in api/account.ts.
  */
-export const certificateUrl = (serial: string, from: string, to: string): string => {
+export const downloadCertificate = async (serial: string, from: string, to: string): Promise<void> => {
   const params = new URLSearchParams({ from, to, download: "1" });
-  return `/api/devices/${serial}/certificate?${params.toString()}`;
+
+  const response = await api.get(`/devices/${serial}/certificate?${params.toString()}`, {
+    responseType: "blob",
+  });
+
+  const disposition: string = response.headers?.["content-disposition"] || "";
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match?.[1] || `certificate-${serial}.json`;
+
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 };
 
 export const activateDevice = async (serial: string, secret: string) => {

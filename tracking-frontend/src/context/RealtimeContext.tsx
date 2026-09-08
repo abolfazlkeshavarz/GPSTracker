@@ -55,6 +55,8 @@ export interface AlertMessage {
   id: number;
   device_serial: string;
   kind: string;
+  /** 'info' | 'warning' | 'critical', derived server-side from the kind. */
+  severity?: string;
   title: string;
   detail?: string;
   lat?: number;

@@ -55,7 +55,17 @@ type payload struct {
 
 	// Signature replaces sending the secret in the clear (firmware rev 3+).
 	Signature string `json:"sig,omitempty"`
+
+	// Anti-theft telemetry and one-shot events (firmware rev 4+). Pointers so
+	// an omitted field stays absent rather than serialising as false, which
+	// the backend would read as "power really is off".
+	ExtPower *bool   `json:"ext_power,omitempty"`
+	Jamming  *bool   `json:"jamming,omitempty"`
+	Event    string  `json:"event,omitempty"`
+	AccelG   float64 `json:"accel_g,omitempty"`
 }
+
+func boolPtr(v bool) *bool { return &v }
 
 func main() {
 	cfg := config.Load()
@@ -78,6 +88,22 @@ func main() {
 		gapAfter   = flag.Int("gap-after", 0, "Publish N live points, then replay a buffered gap (implies -count)")
 		gapMinutes = flag.Int("gap-minutes", 30, "Length of the simulated coverage gap, in minutes")
 		replayLast = flag.Bool("replay", false, "Re-send the previous run's points, to verify duplicates are ignored")
+
+		// Odometer exercise: walk a straight line in fixed steps so the
+		// expected lifetime distance is known ahead of time.
+		distanceSteps = flag.Int("distance-steps", 0, "Publish N points due east in fixed steps, then exit (for the odometer)")
+		stepMeters    = flag.Float64("step-meters", 100.0, "Ground distance between points when -distance-steps is set")
+
+		// Alert-engine exercises.
+		theft = flag.Bool("theft", false, "Run a theft scenario: tow, power cut, then jamming")
+
+		// Control channel. Without this the server can send commands but
+		// nothing ever answers, so every one ends up 'expired'.
+		obeyCommands = flag.Bool("obey", false, "Subscribe to the command topic and acknowledge commands")
+		// Bounded lifetime for scripted use. `go run` execs a child, so a
+		// script that kills the `go run` process leaves the simulator running
+		// as an orphan; letting it time itself out avoids that entirely.
+		runFor = flag.Duration("run-for", 0, "Exit after this long (0 = run until interrupted)")
 	)
 	flag.Parse()
 
@@ -106,9 +132,25 @@ func main() {
 
 	log.Printf("Connected. Publishing to %s every %s", topic, *interval)
 
+	if *obeyCommands {
+		subscribeToCommands(client, *device, *secret)
+	}
+
 	// Ctrl-C should stop cleanly rather than leaving the broker session open.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+	// A deadline closes the same channel, so every wait below handles it
+	// without needing a second case.
+	if *runFor > 0 {
+		log.Printf("Will exit after %s", *runFor)
+		time.AfterFunc(*runFor, func() {
+			select {
+			case stop <- syscall.SIGTERM:
+			default:
+			}
+		})
+	}
 
 	sent := 0
 	curLat, curLng := *lat, *lng
@@ -119,6 +161,17 @@ func main() {
 	if *gapAfter > 0 {
 		runGapScenario(client, topic, *device, *secret, *legacyAuth,
 			*gapAfter, *gapMinutes, curLat, curLng)
+		return
+	}
+
+	if *distanceSteps > 0 {
+		runDistanceScenario(client, topic, *device, *secret, *legacyAuth,
+			*distanceSteps, *stepMeters, curLat, curLng)
+		return
+	}
+
+	if *theft {
+		runTheftScenario(client, topic, *device, *secret, *legacyAuth, curLat, curLng)
 		return
 	}
 
@@ -222,6 +275,224 @@ func signMessage(msg *payload, secret string, legacy bool) {
 	// The whole point of signing is that the secret stops travelling in the
 	// clear, so drop it once a signature is present.
 	msg.Secret = ""
+}
+
+// runDistanceScenario publishes points marching due east in fixed ground
+// steps, so the odometer's expected gain is simply (steps-1) * stepMeters —
+// the first point only seeds the anchor.
+//
+// Timestamps are spaced 5 s apart and end at "now": distinct per second so
+// none collide on the (device, recorded_at) unique index, and all inside the
+// 3-minute backfill threshold so every point feeds the live odometer. Keep
+// -distance-steps at 30 or below to stay within that window.
+func runDistanceScenario(
+	client mqtt.Client, topic, device, secret string, legacy bool,
+	steps int, stepMeters float64, lat, lng float64,
+) {
+	// Metres per degree of longitude shrink with latitude; convert once.
+	metersPerDegLng := 111320.0 * math.Cos(lat*math.Pi/180)
+	dLng := stepMeters / metersPerDegLng
+
+	now := time.Now()
+
+	log.Printf("--- %d points, %.0f m apart due east ---", steps, stepMeters)
+	log.Printf("expected odometer gain: %.0f m (%.2f km)",
+		float64(steps-1)*stepMeters, float64(steps-1)*stepMeters/1000)
+
+	for i := 0; i < steps; i++ {
+		ts := now.Add(-time.Duration(steps-1-i) * 5 * time.Second).Unix()
+
+		msg := payload{
+			Device:     device,
+			Secret:     secret,
+			Lat:        round6(lat),
+			Lng:        round6(lng),
+			Speed:      50,
+			Satellites: 10,
+			CSQ:        20,
+			Battery:    round2(12.4),
+			Ignition:   true,
+			Timestamp:  ts,
+			Heading:    90,
+			Operator:   "MCI",
+		}
+		signMessage(&msg, secret, legacy)
+
+		body, _ := json.Marshal(msg)
+		token := client.Publish(topic, 1, false, body)
+		token.WaitTimeout(10 * time.Second)
+		log.Printf("[%d/%d] %s  %.6f,%.6f", i+1, steps, device, msg.Lat, msg.Lng)
+
+		lng += dLng
+		time.Sleep(80 * time.Millisecond) // pace the broker, not the timestamps
+	}
+
+	log.Println("Distance scenario complete.")
+}
+
+// subscribeToCommands turns the simulator into a virtual device on the
+// control channel: it receives commands, verifies them the way the firmware
+// does, and acknowledges them.
+//
+// Signature verification is not decoration here. It is the half of the
+// contract that stops anyone with broker access stopping any vehicle on it,
+// and having the simulator enforce it means a change that breaks the signing
+// format shows up in `make smoke` rather than on a customer's car.
+func subscribeToCommands(client mqtt.Client, device, secret string) {
+	cmdTopic := fmt.Sprintf("devices/%s/commands", device)
+	ackTopic := fmt.Sprintf("devices/%s/ack", device)
+
+	token := client.Subscribe(cmdTopic, 1, func(_ mqtt.Client, m mqtt.Message) {
+		var cmd struct {
+			ID        int64           `json:"id"`
+			Device    string          `json:"device"`
+			Command   string          `json:"command"`
+			Params    json.RawMessage `json:"params"`
+			Timestamp int64           `json:"ts"`
+			Signature string          `json:"sig"`
+		}
+
+		if err := json.Unmarshal(m.Payload(), &cmd); err != nil {
+			log.Printf("command parse error: %v", err)
+			return
+		}
+
+		// Must match SignMessage in internal/integrity/chain.go:
+		//     device|id|command|ts
+		valid := integrity.VerifyMessage(secret, cmd.Signature,
+			cmd.Device, fmt.Sprint(cmd.ID), cmd.Command, fmt.Sprint(cmd.Timestamp))
+
+		if !valid {
+			log.Printf("command %d (%s): SIGNATURE INVALID - ignored", cmd.ID, cmd.Command)
+			return
+		}
+
+		log.Printf("command %d: %s (signature ok)", cmd.ID, cmd.Command)
+
+		status, result := "ok", "Simulated"
+
+		// Mirror the firmware's own interlock so the refusal path is exercised
+		// too, not just the happy one.
+		if cmd.Command == "engine_cut" {
+			result = "Engine cut (simulated)"
+		}
+
+		ts := time.Now().Unix()
+		ack := map[string]any{
+			"device": device,
+			"id":     cmd.ID,
+			"status": status,
+			"result": result,
+			"ts":     ts,
+			"sig": integrity.SignMessage(secret,
+				device, fmt.Sprint(cmd.ID), status, fmt.Sprint(ts)),
+		}
+
+		body, _ := json.Marshal(ack)
+		client.Publish(ackTopic, 1, false, body).WaitTimeout(5 * time.Second)
+
+		log.Printf("acked %d as %s", cmd.ID, status)
+	})
+
+	if !token.WaitTimeout(10*time.Second) || token.Error() != nil {
+		log.Printf("command subscribe failed: %v", token.Error())
+		return
+	}
+
+	log.Printf("Listening for commands on %s", cmdTopic)
+}
+
+// runTheftScenario walks the alert engine through a realistic theft.
+//
+// The sequence matters. Each step establishes the baseline the next one
+// transitions away from, because every one of these rules fires on a change
+// rather than on a state — publishing "power is off" out of nowhere alerts
+// nothing, which is exactly the bug this scenario is here to catch.
+func runTheftScenario(
+	client mqtt.Client, topic, device, secret string, legacy bool, lat, lng float64,
+) {
+	now := time.Now()
+	step := 0
+
+	// Timestamps 10s apart, ending at now: distinct per second so none collide
+	// on the unique index, and all inside the 3-minute backfill threshold so
+	// every point counts as live and is evaluated.
+	send := func(label string, mutate func(*payload)) {
+		step++
+		msg := payload{
+			Device: device, Secret: secret,
+			Lat: round6(lat), Lng: round6(lng),
+			Speed: 0, Satellites: 10, CSQ: 22,
+			Battery: round2(12.4), Ignition: false,
+			Timestamp: now.Add(-time.Duration(20-step) * 10 * time.Second).Unix(),
+			Operator:  "MCI",
+			ExtPower:  boolPtr(true),
+			Jamming:   boolPtr(false),
+		}
+		mutate(&msg)
+		signMessage(&msg, secret, legacy)
+
+		body, _ := json.Marshal(msg)
+		token := client.Publish(topic, 1, false, body)
+		token.WaitTimeout(10 * time.Second)
+
+		log.Printf("[%2d] %-28s speed=%3d ign=%-5v power=%-5v jam=%-5v event=%s",
+			step, label, msg.Speed, msg.Ignition, *msg.ExtPower, *msg.Jamming, msg.Event)
+
+		time.Sleep(600 * time.Millisecond)
+	}
+
+	log.Println("--- baseline: parked, ignition off, on vehicle power ---")
+	send("parked", func(p *payload) {})
+	send("parked", func(p *payload) {})
+
+	log.Println("--- the vehicle starts moving with the ignition off ---")
+	// Expect: tow (critical).
+	for i := 0; i < 2; i++ {
+		lat += 0.0004
+		lng += 0.0004
+		send("moving, ignition off", func(p *payload) {
+			p.Lat, p.Lng = round6(lat), round6(lng)
+			p.Speed = 25
+		})
+	}
+
+	log.Println("--- the main power lead is cut ---")
+	// Expect: power_cut (critical). The transition from the true baseline
+	// above is what fires it.
+	send("power cut", func(p *payload) {
+		p.Speed = 25
+		p.ExtPower = boolPtr(false)
+	})
+
+	log.Println("--- a jammer is switched on ---")
+	// Expect: jamming (critical).
+	send("jammer detected", func(p *payload) {
+		p.Speed = 30
+		p.ExtPower = boolPtr(false)
+		p.Jamming = boolPtr(true)
+	})
+
+	log.Println("--- the thief starts the engine ---")
+	// Expect: ignition_on (info).
+	send("ignition on", func(p *payload) {
+		p.Speed = 40
+		p.Ignition = true
+		p.ExtPower = boolPtr(false)
+	})
+
+	log.Println("--- and drives into something ---")
+	// Expect: impact (critical).
+	send("impact", func(p *payload) {
+		p.Speed = 55
+		p.Ignition = true
+		p.ExtPower = boolPtr(false)
+		p.Event = "impact"
+		p.AccelG = 6.4
+	})
+
+	log.Println("Theft scenario complete. Check /alerts — expect tow, power cut,")
+	log.Println("jamming, ignition on and impact.")
 }
 
 // runGapScenario emulates store-and-forward firmware: live points, a coverage

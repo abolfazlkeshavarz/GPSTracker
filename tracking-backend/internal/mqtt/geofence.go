@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"tracking-backend/internal/db"
+	"tracking-backend/internal/push"
 	"tracking-backend/internal/services"
 
 	"github.com/redis/go-redis/v9"
@@ -32,22 +33,13 @@ type alertPayload struct {
 	ID           int64     `json:"id"`
 	DeviceSerial string    `json:"device_serial"`
 	Kind         string    `json:"kind"`
+	Severity     string    `json:"severity"`
 	Title        string    `json:"title"`
 	Detail       string    `json:"detail,omitempty"`
 	Lat          *float64  `json:"lat,omitempty"`
 	Lng          *float64  `json:"lng,omitempty"`
 	UserID       int64     `json:"-"` // routing only, not sent to the client
 	CreatedAt    time.Time `json:"created_at"`
-}
-
-// evaluateAlerts runs every alert rule against one live point.
-//
-// Called only for points that are current (see the isBackfill guard at the
-// call site) — a geofence crossing or low-battery reading from forty minutes
-// ago is history, not something to page a user about right now.
-func evaluateAlerts(pg *sql.DB, rdb *redis.Client, userID int64, serial string, lat, lng, battery float64) {
-	evaluateGeofences(pg, rdb, userID, serial, lat, lng)
-	evaluateBattery(pg, rdb, userID, serial, battery, lat, lng)
 }
 
 func evaluateGeofences(pg *sql.DB, rdb *redis.Client, userID int64, serial string, lat, lng float64) {
@@ -123,11 +115,13 @@ func evaluateGeofences(pg *sql.DB, rdb *redis.Client, userID int64, serial strin
 		}
 
 		geofenceID := f.id
-		insertAlert(pg, rdb, userID, serial, kind, title, "", &lat, &lng, &geofenceID)
+		insertAlert(pg, rdb, userID, serial, kind, title, "", &lat, &lng, &geofenceID, false)
 	}
 }
 
-func evaluateBattery(pg *sql.DB, rdb *redis.Client, userID int64, serial string, battery float64, lat, lng float64) {
+func evaluateBattery(pg *sql.DB, rdb *redis.Client, userID int64, serial string,
+	battery float64, lat, lng float64, s alertSettings) {
+
 	if battery <= 0 || battery >= batteryLowThreshold {
 		return
 	}
@@ -157,17 +151,21 @@ func evaluateBattery(pg *sql.DB, rdb *redis.Client, userID int64, serial string,
 
 	title := serial + " battery is low"
 	detail := formatVoltage(battery) + "V — vehicle may not start"
-	insertAlert(pg, rdb, userID, serial, "low_battery", title, detail, &lat, &lng, nil)
+	insertAlert(pg, rdb, userID, serial, "low_battery", title, detail, &lat, &lng, nil, s.silent)
 }
 
 // EvaluateOffline is called by a periodic sweep (see StartOfflineSweeper) —
 // unlike a geofence or battery reading, "device stopped reporting" has no
 // triggering message to hang off of; it is the absence of one.
 func EvaluateOffline(pg *sql.DB, rdb *redis.Client) {
+	// COALESCE mirrors the device_settings column defaults, so a device with
+	// no settings row behaves like one with a freshly created row.
 	rows, err := pg.Query(`
-        SELECT d.serial, d.user_id, s.was_online, s.last_offline_alert
+        SELECT d.serial, d.user_id, s.was_online, s.last_offline_alert,
+               COALESCE(cfg.alert_offline, TRUE), COALESCE(cfg.silent_mode, FALSE)
         FROM devices d
         LEFT JOIN device_alert_state s ON s.device_serial = d.serial
+        LEFT JOIN device_settings   cfg ON cfg.device_serial = d.serial
         WHERE d.user_id IS NOT NULL AND d.is_active`)
 	if err != nil {
 		log.Println("offline sweep query error:", err)
@@ -175,16 +173,19 @@ func EvaluateOffline(pg *sql.DB, rdb *redis.Client) {
 	}
 
 	type row struct {
-		serial    string
-		userID    sql.NullInt64
-		wasOnline sql.NullBool
-		lastAlert sql.NullTime
+		serial     string
+		userID     sql.NullInt64
+		wasOnline  sql.NullBool
+		lastAlert  sql.NullTime
+		wantAlerts bool
+		silent     bool
 	}
 
 	var devices []row
 	for rows.Next() {
 		var r row
-		if err := rows.Scan(&r.serial, &r.userID, &r.wasOnline, &r.lastAlert); err != nil {
+		if err := rows.Scan(&r.serial, &r.userID, &r.wasOnline, &r.lastAlert,
+			&r.wantAlerts, &r.silent); err != nil {
 			continue
 		}
 		devices = append(devices, r)
@@ -215,53 +216,80 @@ func EvaluateOffline(pg *sql.DB, rdb *redis.Client) {
 			continue
 		}
 
+		// The state is recorded above regardless, so switching the rule back on
+		// does not immediately fire against a stale baseline.
+		if !d.wantAlerts {
+			continue
+		}
+
 		if online {
 			insertAlert(pg, rdb, d.userID.Int64, d.serial, "back_online",
-				d.serial+" is back online", "", nil, nil, nil)
+				d.serial+" is back online", "", nil, nil, nil, d.silent)
 		} else {
 			insertAlert(pg, rdb, d.userID.Int64, d.serial, "offline",
-				d.serial+" stopped reporting", "No data received recently", nil, nil, nil)
+				d.serial+" stopped reporting", "No data received recently", nil, nil, nil, d.silent)
 		}
 	}
 }
 
-// insertAlert writes the alert row and publishes it for the live WebSocket
-// feed. DB write and publish are deliberately not in one transaction with
-// the caller's other work: an alert is best-effort telemetry, not something
-// that should roll back a location insert if Redis happens to be down.
+// insertAlert writes the alert row, publishes it for the live WebSocket feed,
+// and pushes it to the user's registered devices.
+//
+// The database write and the two deliveries are deliberately not in one
+// transaction with the caller's other work: an alert is best-effort telemetry,
+// not something that should roll back a location insert because Redis or a
+// push service happened to be down.
+//
+// The WebSocket and Web Push are complementary, not redundant. The socket
+// reaches a tab that is already open; push is the only thing that reaches
+// someone whose phone is in their pocket at 3am, which is precisely when the
+// theft alerts matter.
 func insertAlert(pg *sql.DB, rdb *redis.Client, userID int64, serial, kind, title, detail string,
-	lat, lng *float64, geofenceID *int64) {
+	lat, lng *float64, geofenceID *int64, silent bool) {
+
+	severity := severityFor(kind)
 
 	var id int64
 	var createdAt time.Time
 
 	err := pg.QueryRow(`
-        INSERT INTO alerts (device_serial, user_id, kind, title, detail, lat, lng, geofence_id)
-        VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, $8)
+        INSERT INTO alerts (device_serial, user_id, kind, severity, title, detail, lat, lng, geofence_id)
+        VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7, $8, $9)
         RETURNING id, created_at`,
-		serial, userID, kind, title, detail, lat, lng, geofenceID,
+		serial, userID, kind, severity, title, detail, lat, lng, geofenceID,
 	).Scan(&id, &createdAt)
 	if err != nil {
 		log.Println("alert insert error:", err)
 		return
 	}
 
-	log.Printf("Alert [%s] %s", kind, title)
+	log.Printf("Alert [%s/%s] %s", severity, kind, title)
 
 	payload := alertPayload{
-		Type: "alert", ID: id, DeviceSerial: serial, Kind: kind,
+		Type: "alert", ID: id, DeviceSerial: serial, Kind: kind, Severity: severity,
 		Title: title, Detail: detail, Lat: lat, Lng: lng, CreatedAt: createdAt,
 	}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return
+	if body, err := json.Marshal(payload); err == nil {
+		// Channel is per-user, not per-device: alerts must reach only that
+		// user's own connections, mirroring the access control on every other
+		// alert endpoint.
+		rdb.Publish(db.Ctx, alertChannel(userID), string(body))
 	}
 
-	// Channel is per-user, not per-device: alerts must reach only that
-	// user's own connections, mirroring the access control on every other
-	// alert endpoint.
-	rdb.Publish(db.Ctx, alertChannel(userID), string(body))
+	// Off the ingest goroutine: a push service can take seconds to answer, and
+	// this path runs for every message from every device.
+	go push.SendToUser(pg, userID, push.Payload{
+		Type:         "alert",
+		AlertID:      id,
+		DeviceSerial: serial,
+		Kind:         kind,
+		Severity:     severity,
+		Title:        title,
+		Body:         detail,
+		URL:          "/alerts",
+		Silent:       silent,
+	})
 }
 
 // alertChannel names the Redis pubsub channel for one user's live alerts.

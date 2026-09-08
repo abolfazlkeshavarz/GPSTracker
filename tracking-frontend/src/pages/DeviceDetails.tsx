@@ -11,6 +11,7 @@ import {
   MapPin,
   Navigation,
   Pencil,
+  Route,
   Satellite,
   Signal,
   X,
@@ -20,9 +21,12 @@ import {
 import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import LiveMap from "../components/map/LiveMap";
 import GeofencePanel from "../components/device/GeofencePanel";
+import RemoteControl from "../components/device/RemoteControl";
+import AlertSettingsPanel from "../components/device/AlertSettingsPanel";
+import SubscriptionCard from "../components/device/SubscriptionCard";
 import { useLanguage } from "../context/LanguageContext";
 import { useDeviceUpdates } from "../context/RealtimeContext";
-import { getDevices, getLatestLocation } from "../api/devices";
+import { getDevices, getLatestLocation, getOdometer, setOdometer, type Odometer } from "../api/devices";
 import { downloadHistoryCSV, renameDevice } from "../api/account";
 import {
   Badge,
@@ -312,7 +316,18 @@ export default function DeviceDetails() {
               )}
             </div>
           </Card>
+
+          <OdometerCard serial={serial || ""} refreshSignal={lastUpdate} t={t} />
+
+          <SubscriptionCard serial={serial || ""} />
         </div>
+      </div>
+
+      {/* Control and configuration. Below the map because they are things you
+          come to the page to do, not things you come to the page to see. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mt-4 lg:mt-6">
+        <RemoteControl serial={serial || ""} online={live} />
+        <AlertSettingsPanel serial={serial || ""} />
       </div>
 
       <div className="mt-4 lg:mt-6">
@@ -409,6 +424,129 @@ function RenameableTitle({
       <span className="text-display text-content">{name || serial}</span>
       <Pencil className="w-4 h-4 text-content-muted opacity-0 group-hover:opacity-100 transition-opacity" />
     </button>
+  );
+}
+
+/**
+ * Lifetime distance total for the device.
+ *
+ * The figure is accumulated server-side on the ingest path; this card just
+ * reads it (re-fetching whenever a live point lands) and lets the owner
+ * overwrite the reading — to match the vehicle's real dashboard when a
+ * tracker is first fitted, or to reset it.
+ */
+function OdometerCard({
+  serial,
+  refreshSignal,
+  t,
+}: {
+  serial: string;
+  refreshSignal: unknown;
+  t: (k: string) => string;
+}) {
+  const [odometer, setOdometerState] = useState<Odometer | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!serial) return;
+    // Don't clobber the field the user is currently editing.
+    if (editing) return;
+    getOdometer(serial)
+      .then(setOdometerState)
+      .catch(() => {});
+  }, [serial, refreshSignal, editing]);
+
+  const km = odometer?.total_km ?? 0;
+
+  const startEditing = () => {
+    setDraft(String(km));
+    setEditing(true);
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const value = Number(draft);
+    if (!Number.isFinite(value) || value < 0) return;
+    setSaving(true);
+    try {
+      const updated = await setOdometer(serial, value);
+      setOdometerState(updated);
+      setEditing(false);
+    } catch {
+      // Leave the field open so the user can retry or cancel.
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card flush>
+      <CardHeader
+        title={t("odometer")}
+        subtitle={t("odometer.total.distance")}
+        action={
+          !editing && (
+            <button
+              type="button"
+              onClick={startEditing}
+              aria-label={t("set.odometer")}
+              className="grid place-items-center w-8 h-8 rounded-control text-content-muted hover:bg-surface-sunken cursor-pointer"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )
+        }
+      />
+      <div className="p-5">
+        {editing ? (
+          <form onSubmit={handleSubmit} className="flex items-center gap-2">
+            <input
+              autoFocus
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="any"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="h-9 w-32 px-2.5 rounded-control bg-surface border border-line text-content text-lg font-semibold tnum focus:border-brand transition-colors"
+            />
+            <span className="text-sm text-content-muted">{t("kilometers.short")}</span>
+            <button
+              type="submit"
+              disabled={saving}
+              aria-label={t("save")}
+              className="grid place-items-center w-8 h-8 rounded-control text-status-good hover:bg-status-good/10 cursor-pointer disabled:opacity-50"
+            >
+              <Check className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              aria-label={t("cancel")}
+              className="grid place-items-center w-8 h-8 rounded-control text-content-muted hover:bg-surface-sunken cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </form>
+        ) : (
+          <div className="flex items-center gap-3">
+            <span className="grid place-items-center w-9 h-9 rounded-control bg-series-2/10 text-series-2 shrink-0">
+              <Route className="w-[18px] h-[18px]" />
+            </span>
+            <span className="text-metric font-semibold text-content tnum">
+              {odometer == null
+                ? "—"
+                : km.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              <span className="text-sm font-normal text-content-muted ms-1.5">
+                {t("kilometers.short")}
+              </span>
+            </span>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 

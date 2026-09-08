@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import HistoryMap from "../components/map/HistoryMap";
 import { getTrack, type TrackResponse } from "../api/devices";
-import IntegrityPanel from "../components/device/IntegrityPanel";
+import SpeedProfile from "../components/device/SpeedProfile";
 import { useLanguage } from "../context/LanguageContext";
 import {
   Calendar,
@@ -31,23 +31,23 @@ const daysAgo = (n: number): string => {
 };
 
 const PRESETS = [
-  { key: "today", label: "Today", from: () => toDateInput(new Date()), to: () => toDateInput(new Date()) },
-  { key: "yesterday", label: "Yesterday", from: () => daysAgo(1), to: () => daysAgo(1) },
-  { key: "7d", label: "Last 7 days", from: () => daysAgo(6), to: () => toDateInput(new Date()) },
-  { key: "30d", label: "Last 30 days", from: () => daysAgo(29), to: () => toDateInput(new Date()) },
+  { key: "today", labelKey: "history.preset.today", from: () => toDateInput(new Date()), to: () => toDateInput(new Date()) },
+  { key: "yesterday", labelKey: "history.preset.yesterday", from: () => daysAgo(1), to: () => daysAgo(1) },
+  { key: "7d", labelKey: "history.preset.7d", from: () => daysAgo(6), to: () => toDateInput(new Date()) },
+  { key: "30d", labelKey: "history.preset.30d", from: () => daysAgo(29), to: () => toDateInput(new Date()) },
 ];
 
 // Minimum dwell before a pause counts as a stop. Matches the backend default.
 const STOP_THRESHOLDS = [
-  { label: "1 min", value: 60 },
-  { label: "3 min", value: 180 },
-  { label: "5 min", value: 300 },
-  { label: "15 min", value: 900 },
+  { labelKey: "history.stop.1min", value: 60 },
+  { labelKey: "history.stop.3min", value: 180 },
+  { labelKey: "history.stop.5min", value: 300 },
+  { labelKey: "history.stop.15min", value: 900 },
 ];
 
 export default function DeviceHistory() {
   const { serial } = useParams();
-  const { isRTL } = useLanguage();
+  const { isRTL, t } = useLanguage();
 
   const [from, setFrom] = useState(daysAgo(1));
   const [to, setTo] = useState(toDateInput(new Date()));
@@ -62,7 +62,7 @@ export default function DeviceHistory() {
     if (!serial) return;
 
     if (from > to) {
-      setError("The start date must not be after the end date.");
+      setError(t("history.error.date.range"));
       return;
     }
 
@@ -74,12 +74,12 @@ export default function DeviceHistory() {
       const data = await getTrack(serial, from, to, { minStopSeconds: minStop });
       setTrack(data);
     } catch (err: any) {
-      setError(err.response?.data?.error || "Could not load history for this range.");
+      setError(err.response?.data?.error || t("history.error.load"));
       setTrack(null);
     } finally {
       setLoading(false);
     }
-  }, [serial, from, to, minStop]);
+  }, [serial, from, to, minStop, t]);
 
   // Load once on mount; afterwards the user drives it with Apply.
   useEffect(() => {
@@ -107,10 +107,10 @@ export default function DeviceHistory() {
               className="inline-flex items-center gap-1 text-sm text-brand hover:text-brand-hover mb-2"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to device
+              {t("history.back")}
             </Link>
             <h1 className="text-3xl font-bold text-content">
-              Movement History
+              {t("history.title")}
             </h1>
             <p className="text-content-muted mt-1 font-mono text-sm">{serial}</p>
           </div>
@@ -131,7 +131,7 @@ export default function DeviceHistory() {
                       : "bg-surface-sunken text-content-secondary hover:bg-surface-sunken"
                   }`}
                 >
-                  {p.label}
+                  {t(p.labelKey)}
                 </button>
               );
             })}
@@ -141,7 +141,7 @@ export default function DeviceHistory() {
             <div>
               <label className="block text-sm font-medium text-content-secondary mb-1">
                 <Calendar className="w-4 h-4 inline mr-1" />
-                From
+                {t("history.from")}
               </label>
               <input
                 type="date"
@@ -155,7 +155,7 @@ export default function DeviceHistory() {
             <div>
               <label className="block text-sm font-medium text-content-secondary mb-1">
                 <Calendar className="w-4 h-4 inline mr-1" />
-                To
+                {t("history.to")}
               </label>
               <input
                 type="date"
@@ -170,16 +170,16 @@ export default function DeviceHistory() {
             <div>
               <label className="block text-sm font-medium text-content-secondary mb-1">
                 <ParkingCircle className="w-4 h-4 inline mr-1" />
-                Count as a stop after
+                {t("history.stop.after")}
               </label>
               <select
                 value={minStop}
                 onChange={(e) => setMinStop(Number(e.target.value))}
                 className="w-full px-3 py-2 border border-line rounded-control focus:border-brand"
               >
-                {STOP_THRESHOLDS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {STOP_THRESHOLDS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
                   </option>
                 ))}
               </select>
@@ -191,7 +191,7 @@ export default function DeviceHistory() {
               className="w-full bg-brand text-white py-2 rounded-control font-semibold hover:shadow-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Route className="w-4 h-4" />}
-              {loading ? "Loading..." : "Apply"}
+              {loading ? t("history.loading") : t("history.apply")}
             </button>
           </div>
 
@@ -205,8 +205,7 @@ export default function DeviceHistory() {
           {track?.truncated && (
             <div className="mt-4 p-3 bg-status-warning-bg border border-status-warning/25 text-status-warning rounded-control text-sm flex items-start gap-2">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              This range holds more points than can be shown at once. The track is
-              cut short — narrow the range to see all of it.
+              {t("history.truncated")}
             </div>
           )}
         </div>
@@ -216,31 +215,31 @@ export default function DeviceHistory() {
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <SummaryCard
               icon={<Route className="w-5 h-5 text-brand" />}
-              label="Distance"
-              value={`${summary.distance_km} km`}
+              label={t("history.summary.distance")}
+              value={`${summary.distance_km} ${t("unit.km")}`}
               tone="bg-series-1/10"
             />
             <SummaryCard
               icon={<Clock className="w-5 h-5 text-series-6" />}
-              label="Driving"
+              label={t("history.summary.driving")}
               value={summary.moving_duration}
               tone="bg-series-6/10"
             />
             <SummaryCard
               icon={<ParkingCircle className="w-5 h-5 text-status-warning" />}
-              label="Stopped"
+              label={t("history.summary.stopped")}
               value={summary.stopped_duration}
               tone="bg-status-warning/10"
             />
             <SummaryCard
               icon={<Gauge className="w-5 h-5 text-status-good" />}
-              label="Max speed"
-              value={`${summary.max_speed} km/h`}
+              label={t("history.summary.max.speed")}
+              value={`${summary.max_speed} ${t("unit.kmh")}`}
               tone="bg-status-good/10"
             />
             <SummaryCard
               icon={<MapPin className="w-5 h-5 text-series-6" />}
-              label="Stops"
+              label={t("history.summary.stops")}
               value={String(summary.stop_count)}
               tone="bg-series-6/10"
             />
@@ -254,10 +253,8 @@ export default function DeviceHistory() {
           <div className="mb-4 flex items-start gap-2 p-3 rounded-control bg-brand-subtle border border-brand/20 text-sm">
             <History className="w-4 h-4 text-brand shrink-0 mt-0.5" />
             <span className="text-content-secondary">
-              <strong className="text-brand-ink">{backfilled}</strong> of{" "}
-              {track?.points.length} points were recovered from a coverage gap —
-              buffered on the device and replayed once it reconnected. They are
-              filed at the time they were recorded, not the time they arrived.
+              <strong className="text-brand-ink">{backfilled}</strong>{" "}
+              {t("history.backfill.body").replace("{total}", String(track?.points.length ?? 0))}
             </span>
           </div>
         )}
@@ -266,16 +263,16 @@ export default function DeviceHistory() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-surface rounded-card shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-line bg-surface-sunken">
-              <h2 className="font-semibold text-content">Route</h2>
+              <h2 className="font-semibold text-content">{t("history.route")}</h2>
             </div>
             <div className="h-[540px] relative">
               {!hasPoints && !loading ? (
                 <div className="absolute inset-0 flex items-center justify-center text-center p-6">
                   <div>
                     <MapPin className="w-12 h-12 text-content-muted mx-auto mb-3" />
-                    <p className="text-content-muted font-medium">No movement recorded</p>
+                    <p className="text-content-muted font-medium">{t("history.no.movement")}</p>
                     <p className="text-content-muted text-sm mt-1">
-                      This device reported nothing between these dates.
+                      {t("history.no.movement.hint")}
                     </p>
                   </div>
                 </div>
@@ -290,15 +287,15 @@ export default function DeviceHistory() {
             </div>
           </div>
 
-          {/* Stops + integrity */}
+          {/* Stops + speed profile */}
           <div className="space-y-4">
           <div className="bg-surface rounded-card shadow-sm overflow-hidden flex flex-col">
             <div className="px-5 py-3 border-b border-line bg-surface-sunken">
               <h2 className="font-semibold text-content">
-                Stops {track ? `(${track.stops.length})` : ""}
+                {t("history.summary.stops")} {track ? `(${track.stops.length})` : ""}
               </h2>
               <p className="text-xs text-content-muted mt-0.5">
-                Where the vehicle stayed put, and for how long
+                {t("history.stops.subtitle")}
               </p>
             </div>
 
@@ -306,8 +303,8 @@ export default function DeviceHistory() {
               {!track?.stops.length ? (
                 <p className="text-sm text-content-muted text-center py-8">
                   {hasPoints
-                    ? "No stops longer than the selected threshold."
-                    : "Nothing to show yet."}
+                    ? t("history.no.stops.threshold")
+                    : t("history.nothing.yet")}
                 </p>
               ) : (
                 track.stops.map((stop, i) => (
@@ -328,14 +325,14 @@ export default function DeviceHistory() {
                         <div className="flex items-baseline justify-between gap-2">
                           <span className="font-semibold text-content">{stop.duration}</span>
                           <span className="text-xs text-content-muted">
-                            {stop.point_count} pts
+                            {stop.point_count} {t("history.points.short")}
                           </span>
                         </div>
                         <p className="text-xs text-content-secondary mt-1">
                           {new Date(stop.arrived_at).toLocaleString()}
                         </p>
                         <p className="text-xs text-content-muted">
-                          until {new Date(stop.departed_at).toLocaleTimeString()}
+                          {t("history.until")} {new Date(stop.departed_at).toLocaleTimeString()}
                         </p>
                         <p className="text-[11px] text-content-muted font-mono mt-1">
                           {stop.lat.toFixed(5)}, {stop.lng.toFixed(5)}
@@ -348,8 +345,8 @@ export default function DeviceHistory() {
             </div>
           </div>
 
-            {serial && hasPoints && (
-              <IntegrityPanel serial={serial} from={from} to={to} />
+            {hasPoints && (
+              <SpeedProfile points={track?.points ?? []} summary={summary} />
             )}
           </div>
         </div>

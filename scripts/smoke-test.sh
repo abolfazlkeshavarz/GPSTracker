@@ -180,6 +180,190 @@ expect_status "oversized limit clamped" 200 "$(status_of "$resp")"
 resp=$(api GET /api/devices/TRACKER-001/status "" "$USER1_TOKEN")
 expect_status "device status" 200 "$(status_of "$resp")"
 
+resp=$(api GET /api/devices/TRACKER-001/odometer "" "$USER1_TOKEN")
+expect_status "odometer read" 200 "$(status_of "$resp")"
+if grep -q '"total_km"' <<<"$(body_of "$resp")"; then
+  pass "odometer response contains total_km"
+else
+  fail "odometer response missing total_km"
+fi
+
+resp=$(api PUT /api/devices/TRACKER-001/odometer '{"total_km":1234.5}' "$USER1_TOKEN")
+expect_status "odometer set" 200 "$(status_of "$resp")"
+
+resp=$(api PUT /api/devices/TRACKER-001/odometer '{"total_km":-5}' "$USER1_TOKEN")
+expect_status "negative odometer rejected" 400 "$(status_of "$resp")"
+
+resp=$(api GET /api/devices/TRACKER-002/odometer "" "$USER1_TOKEN")
+expect_status "user1 blocked from user2's odometer" 403 "$(status_of "$resp")"
+
+# ------------------------------------------------------- device configurator
+echo ""
+echo "4b. Device settings"
+
+resp=$(api GET /api/devices/TRACKER-001/settings "" "$USER1_TOKEN")
+expect_status "settings read" 200 "$(status_of "$resp")"
+
+settings_body=$(body_of "$resp")
+for field in '"speed_limit_kmh"' '"alert_tow"' '"alert_power_cut"' '"silent_mode"'; do
+  if grep -q "$field" <<<"$settings_body"; then
+    pass "settings contain $field"
+  else
+    fail "settings missing $field"
+  fi
+done
+
+# A device that has never been configured must report defaults, not 404.
+if grep -q '"alert_tow":true' <<<"$settings_body"; then
+  pass "unconfigured device reports rules on by default"
+else
+  fail "unconfigured device does not default its alert rules on"
+fi
+
+resp=$(api PUT /api/devices/TRACKER-001/settings '{"speed_limit_kmh":110}' "$USER1_TOKEN")
+expect_status "settings update" 200 "$(status_of "$resp")"
+if grep -q '"speed_limit_kmh":110' <<<"$(body_of "$resp")"; then
+  pass "speed limit persisted"
+else
+  fail "speed limit was not persisted"
+fi
+
+# A partial update must not reset the fields it did not mention.
+resp=$(api PUT /api/devices/TRACKER-001/settings '{"silent_mode":true}' "$USER1_TOKEN")
+if grep -q '"speed_limit_kmh":110' <<<"$(body_of "$resp")"; then
+  pass "partial update leaves other settings alone"
+else
+  fail "partial update clobbered an unrelated setting"
+fi
+
+resp=$(api PUT /api/devices/TRACKER-001/settings '{"speed_limit_kmh":999}' "$USER1_TOKEN")
+expect_status "out-of-range speed limit rejected" 400 "$(status_of "$resp")"
+
+resp=$(api GET /api/devices/TRACKER-002/settings "" "$USER1_TOKEN")
+expect_status "user1 blocked from user2's settings" 403 "$(status_of "$resp")"
+
+# ------------------------------------------------------------ remote control
+echo ""
+echo "4c. Remote control"
+
+resp=$(api POST /api/devices/TRACKER-001/commands '{"command":"locate"}' "$USER1_TOKEN")
+expect_status "locate command queued" 202 "$(status_of "$resp")"
+
+# The dangerous commands must not be issuable without an explicit confirmation.
+resp=$(api POST /api/devices/TRACKER-001/commands '{"command":"engine_cut"}' "$USER1_TOKEN")
+expect_status "engine cut without confirm rejected" 400 "$(status_of "$resp")"
+
+resp=$(api POST /api/devices/TRACKER-001/commands '{"command":"do_a_barrel_roll"}' "$USER1_TOKEN")
+expect_status "unknown command rejected" 400 "$(status_of "$resp")"
+
+resp=$(api POST /api/devices/TRACKER-001/commands '{"command":"set_interval","interval_s":5}' "$USER1_TOKEN")
+expect_status "out-of-range interval rejected" 400 "$(status_of "$resp")"
+
+resp=$(api GET /api/devices/TRACKER-001/commands "" "$USER1_TOKEN")
+expect_status "command history" 200 "$(status_of "$resp")"
+
+resp=$(api POST /api/devices/TRACKER-002/commands '{"command":"locate"}' "$USER1_TOKEN")
+expect_status "user1 blocked from commanding user2's device" 403 "$(status_of "$resp")"
+
+# The full control channel: signed command out, signature checked by the
+# device, signed acknowledgement back, status closed out. This is the only
+# check that proves the signing format still matches on both sides — break it
+# and deployed hardware silently stops obeying commands.
+if command -v go >/dev/null 2>&1; then
+  info "starting a virtual device that obeys commands..."
+
+  # -run-for, not a background kill: `go run` execs a child, so killing the
+  # `go run` process leaves the simulator running as an orphan that keeps
+  # publishing long after the test finishes.
+  (cd "$ROOT_DIR/tracking-backend" && \
+     MQTT_BROKER="tcp://$MQTT_HOST:$MQTT_PORT" \
+     go run ./cmd/mqttsim -device DEVICEADMIN -secret 357951 \
+       -obey -interval 60s -run-for 25s >/dev/null 2>&1) &
+
+  sleep 12
+
+  resp=$(api POST /api/devices/DEVICEADMIN/commands '{"command":"door_lock"}' "$ADMIN_TOKEN")
+  expect_status "command issued to a listening device" 202 "$(status_of "$resp")"
+  cmd_id=$(sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' <<<"$(body_of "$resp")" | head -1)
+
+  sleep 4
+
+  resp=$(api GET "/api/devices/DEVICEADMIN/commands?limit=5" "" "$ADMIN_TOKEN")
+  if grep -q "\"id\":$cmd_id,[^}]*\"status\":\"acked\"" <<<"$(body_of "$resp")"; then
+    pass "the device acknowledged command $cmd_id (signed both ways)"
+  else
+    fail "command $cmd_id was never acknowledged — check the signing format on both sides"
+  fi
+
+  wait 2>/dev/null || true
+else
+  info "go not on PATH; skipping the control-channel round trip"
+fi
+
+# --------------------------------------------------------- plan and warranty
+echo ""
+echo "4d. Subscription and warranty"
+
+resp=$(api GET /api/devices/TRACKER-001/subscription "" "$USER1_TOKEN")
+expect_status "subscription read" 200 "$(status_of "$resp")"
+
+for field in '"subscription"' '"warranty"'; do
+  if grep -q "$field" <<<"$(body_of "$resp")"; then
+    pass "subscription response contains $field"
+  else
+    fail "subscription response missing $field"
+  fi
+done
+
+resp=$(api POST /api/admin/devices/TRACKER-001/subscription '{"plan":"pro","months":12}' "$ADMIN_TOKEN")
+expect_status "admin renews a plan" 200 "$(status_of "$resp")"
+if grep -q '"plan":"pro"' <<<"$(body_of "$resp")"; then
+  pass "renewal applied the new plan"
+else
+  fail "renewal did not apply the plan"
+fi
+
+# A customer must not be able to extend their own subscription.
+resp=$(api POST /api/admin/devices/TRACKER-001/subscription '{"plan":"pro","months":12}' "$USER1_TOKEN")
+expect_status "non-admin blocked from renewing" 403 "$(status_of "$resp")"
+
+resp=$(api PUT /api/admin/devices/TRACKER-001/inventory '{"imei":"350000000000001","warranty_months":18,"purchase_date":"2026-01-15"}' "$ADMIN_TOKEN")
+expect_status "admin sets inventory/warranty" 200 "$(status_of "$resp")"
+
+resp=$(api PUT /api/admin/devices/TRACKER-001/inventory '{"purchase_date":"15-01-2026"}' "$ADMIN_TOKEN")
+expect_status "malformed purchase date rejected" 400 "$(status_of "$resp")"
+
+# ---------------------------------------------------------------- web push
+echo ""
+echo "4e. Web Push"
+
+resp=$(api GET /api/push/vapid-key)
+expect_status "VAPID key served unauthenticated" 200 "$(status_of "$resp")"
+
+if grep -q '"enabled":true' <<<"$(body_of "$resp")"; then
+  pass "push is configured on this server"
+elif grep -q '"enabled":false' <<<"$(body_of "$resp")"; then
+  info "push is not configured (set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY)"
+else
+  fail "VAPID response is missing the enabled flag"
+fi
+
+resp=$(api POST /api/push/subscribe '{"endpoint":"https://example.invalid/smoke","keys":{"p256dh":"x","auth":"y"}}' "$USER1_TOKEN")
+expect_status "push subscription saved" 201 "$(status_of "$resp")"
+
+# Re-registering the same endpoint must upsert rather than duplicate.
+resp=$(api POST /api/push/subscribe '{"endpoint":"https://example.invalid/smoke","keys":{"p256dh":"x2","auth":"y2"}}' "$USER1_TOKEN")
+expect_status "re-registering an endpoint upserts" 201 "$(status_of "$resp")"
+
+resp=$(api POST /api/push/subscribe '{"endpoint":"https://example.invalid/x"}' "$USER1_TOKEN")
+expect_status "subscription without keys rejected" 400 "$(status_of "$resp")"
+
+resp=$(api POST /api/push/unsubscribe '{"endpoint":"https://example.invalid/smoke"}' "$USER1_TOKEN")
+expect_status "push subscription removed" 200 "$(status_of "$resp")"
+
+resp=$(api POST /api/push/subscribe '{"endpoint":"https://example.invalid/x2","keys":{"p256dh":"a","auth":"b"}}')
+expect_status "push subscribe requires a session" 401 "$(status_of "$resp")"
+
 # -------------------------------------------------------------- track/history
 echo ""
 echo "5. Movement history"
@@ -299,6 +483,66 @@ if command -v go >/dev/null 2>&1; then
     pass "points with an invalid secret were rejected"
   else
     fail "invalid-secret points were stored ($after_count -> $final_count)"
+  fi
+
+  # Odometer: a straight run of known length moves the lifetime total by
+  # roughly that distance. 6 points 100 m apart => ~500 m expected gain.
+  odo_before=$(api GET "/api/devices/DEVICEADMIN/odometer" "" "$ADMIN_TOKEN")
+  before_m=$(sed -n 's/.*"total_meters"[[:space:]]*:[[:space:]]*\([0-9.]*\).*/\1/p' <<<"$(body_of "$odo_before")")
+
+  info "driving a ~500 m straight line for the odometer..."
+  (cd "$ROOT_DIR/tracking-backend" && \
+     MQTT_BROKER="tcp://$MQTT_HOST:$MQTT_PORT" \
+     go run ./cmd/mqttsim -device DEVICEADMIN -secret 357951 \
+       -distance-steps 6 -step-meters 100 >/dev/null 2>&1)
+
+  sleep 2
+
+  odo_after=$(api GET "/api/devices/DEVICEADMIN/odometer" "" "$ADMIN_TOKEN")
+  after_m=$(sed -n 's/.*"total_meters"[[:space:]]*:[[:space:]]*\([0-9.]*\).*/\1/p' <<<"$(body_of "$odo_after")")
+
+  gain=$(awk -v a="${after_m:-0}" -v b="${before_m:-0}" 'BEGIN { printf "%.0f", a - b }')
+  if (( gain >= 300 && gain <= 800 )); then
+    pass "odometer advanced by ${gain} m over a ~500 m run"
+  else
+    fail "odometer gain ${gain} m is outside the expected 300-800 m band"
+  fi
+
+  # The alert engine, end to end. Each rule in the scenario fires on a
+  # transition, so this also proves the baselines are being recorded — a rule
+  # that never establishes one silently never fires.
+  info "running the theft scenario (tow, power cut, jamming, impact)..."
+  (cd "$ROOT_DIR/tracking-backend" && \
+     MQTT_BROKER="tcp://$MQTT_HOST:$MQTT_PORT" \
+     go run ./cmd/mqttsim -device DEVICEADMIN -secret 357951 -theft >/dev/null 2>&1)
+
+  sleep 3
+
+  alerts=$(api GET "/api/alerts?limit=100" "" "$ADMIN_TOKEN")
+  alerts_body=$(body_of "$alerts")
+
+  for kind in tow power_cut jamming impact ignition_on; do
+    if grep -q "\"kind\":\"$kind\"" <<<"$alerts_body"; then
+      pass "alert engine raised $kind"
+    else
+      fail "alert engine did not raise $kind"
+    fi
+  done
+
+  # Severity is what drives push urgency and how the UI shouts; a theft alert
+  # landing as 'info' would be delivered late and shown quietly.
+  if grep -q '"severity":"critical"' <<<"$alerts_body"; then
+    pass "theft-grade alerts are marked critical"
+  else
+    fail "no critical severity found among the theft alerts"
+  fi
+
+  resp=$(api GET "/api/alerts?severity=critical&limit=100" "" "$ADMIN_TOKEN")
+  expect_status "alerts filter by severity" 200 "$(status_of "$resp")"
+  if grep -q '"severity":"info"' <<<"$(body_of "$resp")"; then
+    fail "the critical filter returned non-critical alerts"
+  else
+    pass "the critical filter excludes routine alerts"
   fi
 else
   info "go not on PATH; skipping MQTT checks"

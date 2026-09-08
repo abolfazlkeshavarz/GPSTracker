@@ -16,8 +16,15 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": false,
-    "types": ["vite/client"]
+    "types": ["vite/client", "vite-plugin-pwa/client"]
   },
   "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  // The service worker is checked by tsconfig.worker.json against the
+  // WebWorker lib instead; under this project's DOM lib every `self.*` call
+  // in it is a type error.
+  "exclude": ["src/sw.ts"],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.worker.json" }
+  ]
 }

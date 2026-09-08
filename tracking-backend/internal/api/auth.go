@@ -3,13 +3,16 @@ package api
 import (
     "crypto/subtle"
     "database/sql"
+    "log"
     "net/http"
     "regexp"
     "strings"
+    "time"
 
     "tracking-backend/internal/config"
     "tracking-backend/internal/db"
     "tracking-backend/internal/models"
+    "tracking-backend/internal/services"
     "tracking-backend/internal/utils"
 
     "github.com/gin-gonic/gin"
@@ -217,14 +220,26 @@ func ActivateDevice(c *gin.Context) {
         return
     }
 
+    // Start the free trial the unit ships with. Idempotent, so re-registering
+    // a device does not hand out another three free months.
+    if err := services.EnsureTrial(db.DB, req.Serial); err != nil {
+        // The device is activated either way; a missing plan row is a
+        // commercial problem to reconcile, not a reason to fail activation
+        // the customer has already completed.
+        log.Println("trial subscription error:", err)
+    }
+
     // Log activation
     _, _ = db.DB.Exec(`
         INSERT INTO audit_logs (user_id, action, entity_type, entity_id, ip_address)
         VALUES ($1, $2, $3, $4, $5)`,
         userID, "ACTIVATE_DEVICE", "device", req.Serial, c.ClientIP(),
     )
-    
-    c.JSON(http.StatusOK, gin.H{"message": "Device activated successfully"})
+
+    c.JSON(http.StatusOK, gin.H{
+        "message":    "Device activated successfully",
+        "trial_days": services.TrialDays,
+    })
 }
 
 func GetUserDevices(c *gin.Context) {
@@ -236,11 +251,17 @@ func GetUserDevices(c *gin.Context) {
 
     // is_active was missing from the projection, so every device came back
     // marked inactive regardless of its real state.
+    //
+    // The subscription is joined in rather than fetched per device: a fleet
+    // dashboard showing expiry for twenty vehicles should not make twenty
+    // extra requests to do it.
     rows, err := db.DB.Query(`
-        SELECT serial, COALESCE(name, ''), is_active, activated_at
-        FROM devices
-        WHERE user_id=$1
-        ORDER BY activated_at DESC NULLS LAST`,
+        SELECT d.serial, COALESCE(d.name, ''), d.is_active, d.activated_at,
+               COALESCE(d.model, ''), s.plan, s.started_at, s.expires_at
+        FROM devices d
+        LEFT JOIN device_subscription s ON s.device_serial = d.serial
+        WHERE d.user_id = $1
+        ORDER BY d.activated_at DESC NULLS LAST`,
         userID,
     )
     if err != nil {
@@ -253,8 +274,11 @@ func GetUserDevices(c *gin.Context) {
     for rows.Next() {
         var device models.Device
         var activatedAt sql.NullTime
+        var plan sql.NullString
+        var startedAt, expiresAt sql.NullTime
 
-        if err := rows.Scan(&device.Serial, &device.Name, &device.IsActive, &activatedAt); err != nil {
+        if err := rows.Scan(&device.Serial, &device.Name, &device.IsActive, &activatedAt,
+            &device.Model, &plan, &startedAt, &expiresAt); err != nil {
             continue
         }
 
@@ -263,6 +287,22 @@ func GetUserDevices(c *gin.Context) {
 
         if activatedAt.Valid {
             device.ActivatedAt = &activatedAt.Time
+        }
+
+        // Left nil for a device that has no plan at all, which is honestly
+        // different from one whose plan has run out.
+        if plan.Valid && expiresAt.Valid {
+            sub := &models.Subscription{
+                DeviceSerial: device.Serial,
+                Plan:         plan.String,
+                ExpiresAt:    expiresAt.Time,
+            }
+            if startedAt.Valid {
+                sub.StartedAt = startedAt.Time
+            }
+            sub.DaysRemaining, sub.IsActive, sub.IsExpiring =
+                services.SubscriptionStatus(sub.ExpiresAt, time.Now())
+            device.Subscription = sub
         }
 
         devices = append(devices, device)

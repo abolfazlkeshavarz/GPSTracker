@@ -12,9 +12,16 @@
     <!-- iOS / iPadOS home screen -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     
-    <!-- PWA manifest -->
-    <link rel="manifest" href="/manifest.json" />
-    
+    <!-- The manifest link is injected at build time by vite-plugin-pwa, which
+         emits manifest.webmanifest. Do not add one by hand: with two manifest
+         links the browser picks one arbitrarily, and the stale copy wins as
+         often as not. -->
+
+    <!-- iOS reads these rather than the manifest to decide standalone display. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="ردگَرد" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#2a78d6" />

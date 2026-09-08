@@ -27,6 +27,7 @@ import {
   StatusDot,
   cx,
 } from "../components/ui";
+import { InstallPrompt } from "../components/pwa/PWAPrompts";
 
 /**
  * A device is "live" if its last fix arrived within this window.
@@ -145,6 +146,11 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Installing is what makes push notifications reliable — on iOS it is
+          the only way they work at all — so the prompt sits on the landing
+          page rather than buried in settings. */}
+      <InstallPrompt />
 
       {/* KPI row. One number each — a tile reads faster than a one-bar chart. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 stagger">

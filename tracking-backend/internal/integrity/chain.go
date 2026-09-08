@@ -130,6 +130,31 @@ func SignPayload(secret, device string, timestamp int64, lat, lng float64) strin
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+// SignMessage is the general-purpose form of SignPayload, for the control
+// channel: commands the server sends down, and acknowledgements the device
+// sends back.
+//
+// Both directions are signed with the same shared secret. Downlink signing is
+// the important half: without it, anyone who can write to the broker could
+// publish an engine-cut command to any device on it.
+func SignMessage(secret string, parts ...string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(strings.Join(parts, "|")))
+
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// VerifyMessage checks a SignMessage signature in constant time.
+func VerifyMessage(secret, signature string, parts ...string) bool {
+	got, err := hex.DecodeString(strings.TrimSpace(signature))
+	if err != nil {
+		return false
+	}
+	want, _ := hex.DecodeString(SignMessage(secret, parts...))
+
+	return hmac.Equal(got, want)
+}
+
 // VerifyPayload checks a device signature in constant time.
 func VerifyPayload(secret, device string, timestamp int64, lat, lng float64, signature string) bool {
 	expected := SignPayload(secret, device, timestamp, lat, lng)

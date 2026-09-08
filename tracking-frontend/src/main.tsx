@@ -7,6 +7,7 @@ import App from "./App";
 import { LanguageProvider } from "./context/LanguageContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { RealtimeProvider } from "./context/RealtimeContext";
+import PWAHost from "./components/pwa/PWAHost";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -21,6 +22,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           */}
           <RealtimeProvider>
             <App />
+            {/* Service worker registration and the update prompt. Above the
+                router because registration is per page load, not per route. */}
+            <PWAHost />
             <Toaster
               position="top-center"
               toastOptions={{

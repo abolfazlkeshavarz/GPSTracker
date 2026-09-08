@@ -113,6 +113,12 @@ func createTables() error {
 		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS operator TEXT`,
 		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS fix_age_ms INTEGER`,
 
+		// Anti-theft telemetry. ext_power is the vehicle supply: losing it
+		// while the device keeps reporting on its backup cell is a cut
+		// battery, not a shutdown. jamming is the modem's interference flag.
+		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS ext_power BOOLEAN`,
+		`ALTER TABLE location_history ADD COLUMN IF NOT EXISTS jamming BOOLEAN`,
+
 		// --- gap-free tracking -------------------------------------------
 		// recorded_at now means "when the fix happened" (device clock);
 		// received_at is when the server got it. They diverge whenever a
@@ -188,6 +194,22 @@ func createTables() error {
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )`,
 
+		// The rule set grew past the original five kinds. CREATE TABLE IF NOT
+		// EXISTS does nothing on an existing database, so the old CHECK would
+		// still be in force and every new kind would fail to insert.
+		`ALTER TABLE alerts ALTER COLUMN kind TYPE VARCHAR(32)`,
+		`ALTER TABLE alerts DROP CONSTRAINT IF EXISTS alerts_kind_check`,
+		`ALTER TABLE alerts ADD CONSTRAINT alerts_kind_check CHECK (kind IN (
+            'geofence_enter', 'geofence_exit', 'low_battery', 'offline', 'back_online',
+            'overspeed', 'ignition_on', 'ignition_off', 'tow', 'impact',
+            'harsh_accel', 'harsh_brake', 'harsh_corner',
+            'power_cut', 'power_restored', 'jamming', 'sos',
+            'subscription_expiring', 'subscription_expired'
+        ))`,
+
+		`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS severity VARCHAR(10) NOT NULL DEFAULT 'info'
+            CHECK (severity IN ('info', 'warning', 'critical'))`,
+
 		`CREATE INDEX IF NOT EXISTS idx_alerts_user_time ON alerts(user_id, created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_alerts_user_unread ON alerts(user_id) WHERE NOT is_read`,
 
@@ -196,6 +218,110 @@ func createTables() error {
             last_battery_alert TIMESTAMP WITH TIME ZONE,
             last_offline_alert TIMESTAMP WITH TIME ZONE,
             was_online BOOLEAN NOT NULL DEFAULT TRUE
+        )`,
+
+		// Debounce markers and last-observed states for the rules added with
+		// the expanded alert engine, so each fires on a transition rather than
+		// on every point reporting the same condition.
+		`ALTER TABLE device_alert_state ADD COLUMN IF NOT EXISTS last_overspeed_alert TIMESTAMP WITH TIME ZONE`,
+		`ALTER TABLE device_alert_state ADD COLUMN IF NOT EXISTS last_tow_alert TIMESTAMP WITH TIME ZONE`,
+		`ALTER TABLE device_alert_state ADD COLUMN IF NOT EXISTS last_jamming_alert TIMESTAMP WITH TIME ZONE`,
+		`ALTER TABLE device_alert_state ADD COLUMN IF NOT EXISTS last_ignition BOOLEAN`,
+		`ALTER TABLE device_alert_state ADD COLUMN IF NOT EXISTS last_ext_power BOOLEAN`,
+
+		// --- commercial / inventory ------------------------------------------
+		// What a unit needs to be sold, warrantied and supported.
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS imei VARCHAR(20)`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS model VARCHAR(40)`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS sim_msisdn VARCHAR(20)`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS purchase_date DATE`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS warranty_months INT NOT NULL DEFAULT 18`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS notes VARCHAR(400)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_devices_imei ON devices(imei) WHERE imei IS NOT NULL`,
+
+		// --- subscriptions ----------------------------------------------------
+		// Platform access is sold separately from the hardware: every unit
+		// ships with a free trial and must be renewed after it.
+		`CREATE TABLE IF NOT EXISTS device_subscription (
+            device_serial VARCHAR(50) PRIMARY KEY REFERENCES devices(serial) ON DELETE CASCADE,
+            plan          VARCHAR(20) NOT NULL DEFAULT 'trial'
+                          CHECK (plan IN ('trial', 'basic', 'pro')),
+            started_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            expires_at    TIMESTAMP WITH TIME ZONE NOT NULL,
+            warned_at     TIMESTAMP WITH TIME ZONE,
+            expired_at    TIMESTAMP WITH TIME ZONE,
+            updated_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )`,
+		`CREATE INDEX IF NOT EXISTS idx_subscription_expires ON device_subscription(expires_at)`,
+
+		// --- device settings (the configurator) -------------------------------
+		`CREATE TABLE IF NOT EXISTS device_settings (
+            device_serial       VARCHAR(50) PRIMARY KEY REFERENCES devices(serial) ON DELETE CASCADE,
+            speed_limit_kmh     INT NOT NULL DEFAULT 0 CHECK (speed_limit_kmh BETWEEN 0 AND 300),
+            report_interval_s   INT NOT NULL DEFAULT 30 CHECK (report_interval_s BETWEEN 10 AND 3600),
+            alert_overspeed     BOOLEAN NOT NULL DEFAULT TRUE,
+            alert_ignition      BOOLEAN NOT NULL DEFAULT TRUE,
+            alert_tow           BOOLEAN NOT NULL DEFAULT TRUE,
+            alert_impact        BOOLEAN NOT NULL DEFAULT TRUE,
+            alert_harsh_driving BOOLEAN NOT NULL DEFAULT TRUE,
+            alert_power_cut     BOOLEAN NOT NULL DEFAULT TRUE,
+            alert_jamming       BOOLEAN NOT NULL DEFAULT TRUE,
+            alert_low_battery   BOOLEAN NOT NULL DEFAULT TRUE,
+            alert_geofence      BOOLEAN NOT NULL DEFAULT TRUE,
+            alert_offline       BOOLEAN NOT NULL DEFAULT TRUE,
+            silent_mode         BOOLEAN NOT NULL DEFAULT FALSE,
+            updated_at          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )`,
+
+		// --- device commands --------------------------------------------------
+		// Queued rather than fire-and-forget: a device on GPRS is regularly
+		// unreachable for a minute, and "did the engine actually cut?" is the
+		// one question this feature has to answer honestly.
+		`CREATE TABLE IF NOT EXISTS device_commands (
+            id            BIGSERIAL PRIMARY KEY,
+            device_serial VARCHAR(50) NOT NULL REFERENCES devices(serial) ON DELETE CASCADE,
+            command       VARCHAR(32) NOT NULL
+                          CHECK (command IN ('engine_cut', 'engine_restore', 'door_lock',
+                                             'door_unlock', 'locate', 'reboot', 'set_interval')),
+            params        JSONB,
+            status        VARCHAR(16) NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending', 'sent', 'acked', 'failed', 'expired')),
+            issued_by     INT REFERENCES users(id) ON DELETE SET NULL,
+            issued_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            sent_at       TIMESTAMP WITH TIME ZONE,
+            acked_at      TIMESTAMP WITH TIME ZONE,
+            result        VARCHAR(200)
+        )`,
+		`CREATE INDEX IF NOT EXISTS idx_commands_device_time ON device_commands(device_serial, issued_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_commands_pending ON device_commands(device_serial) WHERE status IN ('pending', 'sent')`,
+
+		// --- web push subscriptions -------------------------------------------
+		// The keys are the browser's, not ours: they are what the payload is
+		// encrypted to, so a leaked row cannot be used to read anything.
+		`CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id         BIGSERIAL PRIMARY KEY,
+            user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            endpoint   TEXT NOT NULL UNIQUE,
+            p256dh     TEXT NOT NULL,
+            auth       TEXT NOT NULL,
+            user_agent VARCHAR(200),
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            last_used_at TIMESTAMP WITH TIME ZONE
+        )`,
+		`CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id)`,
+
+		// --- odometer ------------------------------------------------------
+		// A monotonic lifetime distance counter per device, accumulated one
+		// fix at a time on the MQTT ingest path. last_lat/last_lng is the last
+		// position that advanced the counter; sub-noise-floor jitter never
+		// moves it, so a parked vehicle does not drift up kilometres.
+		`CREATE TABLE IF NOT EXISTS device_odometer (
+            device_serial    VARCHAR(50) PRIMARY KEY REFERENCES devices(serial) ON DELETE CASCADE,
+            total_meters     DOUBLE PRECISION NOT NULL DEFAULT 0,
+            last_lat         DOUBLE PRECISION,
+            last_lng         DOUBLE PRECISION,
+            last_recorded_at TIMESTAMP WITH TIME ZONE,
+            updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )`,
 
 		`CREATE INDEX IF NOT EXISTS idx_location_history_device_time

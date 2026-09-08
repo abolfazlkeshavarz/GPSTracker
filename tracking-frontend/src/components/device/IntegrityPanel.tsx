@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { verifyChain, downloadCertificate, type ChainVerification } from "../../api/devices";
+import { useLanguage } from "../../context/LanguageContext";
 import { Badge, Button, Card, CardHeader, Skeleton, cx } from "../ui";
 
 /*
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export default function IntegrityPanel({ serial, from, to }: Props) {
+  const { t } = useLanguage();
   const [result, setResult] = useState<ChainVerification | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -58,12 +60,12 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
       const data = await verifyChain(serial, from, to);
       setResult(data.verification);
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Could not verify this range.");
+      setError(err?.response?.data?.error || t("integrity.error"));
       setResult(null);
     } finally {
       setLoading(false);
     }
-  }, [serial, from, to]);
+  }, [serial, from, to, t]);
 
   useEffect(() => {
     run();
@@ -75,8 +77,8 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
   return (
     <Card flush>
       <CardHeader
-        title="Record integrity"
-        subtitle="Whether this history can be shown to be unaltered"
+        title={t("integrity.title")}
+        subtitle={t("integrity.subtitle")}
         action={
           <Button
             size="sm"
@@ -84,9 +86,9 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
             onClick={run}
             loading={loading}
             icon={<RefreshCw className="w-3.5 h-3.5" />}
-            aria-label="Re-check integrity"
+            aria-label={t("integrity.recheck.aria")}
           >
-            Re-check
+            {t("integrity.recheck")}
           </Button>
         }
       />
@@ -106,7 +108,7 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
         ) : !result || result.record_count === 0 ? (
           <p className="flex items-start gap-2 text-sm text-content-muted">
             <SignalZero className="w-4 h-4 shrink-0 mt-0.5" />
-            No records in this range to verify.
+            {t("integrity.no.records")}
           </p>
         ) : (
           <>
@@ -117,29 +119,29 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
             />
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <Row label="Records in range" value={result.record_count} />
-              <Row label="Covered by the chain" value={covered} />
+              <Row label={t("integrity.row.records")} value={result.record_count} />
+              <Row label={t("integrity.row.covered")} value={covered} />
               <Row
-                label="Device-signed"
+                label={t("integrity.row.device.signed")}
                 value={result.hmac_count}
-                hint="HMAC — provably from the device"
+                hint={t("integrity.hint.hmac")}
               />
               <Row
-                label="Legacy auth"
+                label={t("integrity.row.legacy")}
                 value={result.legacy_count}
                 tone={result.legacy_count > 0 ? "warning" : undefined}
-                hint="Shared secret sent in clear"
+                hint={t("integrity.hint.legacy")}
               />
               <Row
-                label="Backfilled"
+                label={t("integrity.row.backfilled")}
                 value={result.backfill_count}
-                hint="Recovered from a coverage gap"
+                hint={t("integrity.hint.backfilled")}
               />
               <Row
-                label="Not covered"
+                label={t("integrity.row.not.covered")}
                 value={result.unprotected_count}
                 tone={result.unprotected_count > 0 ? "warning" : undefined}
-                hint="Stored before chaining began"
+                hint={t("integrity.hint.not.covered")}
               />
             </dl>
 
@@ -151,8 +153,7 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
 
             {!result.valid && result.first_broken_id != null && (
               <p className="text-xs text-status-critical">
-                Tampering begins at record #{result.first_broken_id}. Everything
-                recorded before it is still verifiable.
+                {t("integrity.tamper.begins").replace("{id}", String(result.first_broken_id))}
               </p>
             )}
 
@@ -164,7 +165,7 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
                 loading={downloading}
                 icon={<Download className="w-3.5 h-3.5" />}
               >
-                Download certificate
+                {t("integrity.download")}
               </Button>
 
               <a
@@ -173,13 +174,12 @@ export default function IntegrityPanel({ serial, from, to }: Props) {
                 rel="noreferrer"
                 className="text-xs text-brand hover:underline"
               >
-                Public key
+                {t("integrity.public.key")}
               </a>
             </div>
 
             <p className="text-xs text-content-muted">
-              The certificate is signed with Ed25519 and can be checked by
-              anyone holding the public key — no account here required.
+              {t("integrity.cert.note")}
             </p>
           </>
         )}
@@ -197,15 +197,16 @@ function Verdict({
   fullyProtected: boolean;
   covered: number;
 }) {
+  const { t } = useLanguage();
+
   if (!valid) {
     return (
       <div className="flex items-start gap-3 p-3 rounded-control bg-status-critical-bg border border-status-critical/25">
         <ShieldAlert className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
         <div>
-          <p className="font-semibold text-status-critical">Records were altered</p>
+          <p className="font-semibold text-status-critical">{t("integrity.verdict.altered.title")}</p>
           <p className="text-xs text-content-secondary mt-0.5">
-            The stored hashes no longer match the data. This history should not
-            be relied on as evidence.
+            {t("integrity.verdict.altered.body")}
           </p>
         </div>
       </div>
@@ -217,11 +218,9 @@ function Verdict({
       <div className="flex items-start gap-3 p-3 rounded-control bg-status-warning-bg border border-status-warning/25">
         <FileWarning className="w-5 h-5 text-status-warning shrink-0 mt-0.5" />
         <div>
-          <p className="font-semibold text-status-warning">Partially verifiable</p>
+          <p className="font-semibold text-status-warning">{t("integrity.verdict.partial.title")}</p>
           <p className="text-xs text-content-secondary mt-0.5">
-            {covered} record{covered === 1 ? "" : "s"} verify correctly. The rest
-            were stored before tamper-evident recording was switched on, so
-            nothing can be proven about them either way.
+            {t("integrity.verdict.partial.body").replace("{covered}", String(covered))}
           </p>
         </div>
       </div>
@@ -232,10 +231,9 @@ function Verdict({
     <div className="flex items-start gap-3 p-3 rounded-control bg-status-good-bg border border-status-good/25">
       <ShieldCheck className="w-5 h-5 text-status-good shrink-0 mt-0.5" />
       <div>
-        <p className="font-semibold text-status-good">Verified unaltered</p>
+        <p className="font-semibold text-status-good">{t("integrity.verdict.ok.title")}</p>
         <p className="text-xs text-content-secondary mt-0.5">
-          Every record hashes correctly and links to the one before it. Nothing
-          has been edited, removed or reordered since it was stored.
+          {t("integrity.verdict.ok.body")}
         </p>
       </div>
     </div>
@@ -271,15 +269,17 @@ function Row({
 
 /** Compact badge for page headers. */
 export function IntegrityBadge({ verified }: { verified: boolean | null }) {
+  const { t } = useLanguage();
+
   if (verified === null) return null;
 
   return verified ? (
     <Badge tone="good" icon={<BadgeCheck className="w-3 h-3" />}>
-      Verified
+      {t("integrity.badge.verified")}
     </Badge>
   ) : (
     <Badge tone="critical" icon={<ShieldAlert className="w-3 h-3" />}>
-      Altered
+      {t("integrity.badge.altered")}
     </Badge>
   );
 }

@@ -9,6 +9,7 @@ import ActivateDevice from "./pages/ActivateDevice";
 import AdminPanel from "./pages/AdminPanel";
 import Alerts from "./pages/Alerts";
 import Account from "./pages/Account";
+import RecordIntegrity from "./pages/RecordIntegrity";
 import { useAuthStore } from "./store/authStore";
 import { isTokenExpired } from "./lib/token";
 
@@ -111,6 +112,15 @@ function App() {
         element={
           <RequireAuth>
             <Account />
+          </RequireAuth>
+        }
+      />
+
+      <Route
+        path="/integrity"
+        element={
+          <RequireAuth>
+            <RecordIntegrity />
           </RequireAuth>
         }
       />

@@ -208,7 +208,7 @@ func ListAlerts(c *gin.Context) {
 	unreadOnly := c.Query("unread") == "1"
 
 	query := `
-        SELECT id, device_serial, kind, title, COALESCE(detail, ''),
+        SELECT id, device_serial, kind, COALESCE(severity, 'info'), title, COALESCE(detail, ''),
                lat, lng, geofence_id, is_read, created_at
         FROM alerts
         WHERE user_id = $1`
@@ -216,6 +216,12 @@ func ListAlerts(c *gin.Context) {
 
 	if unreadOnly {
 		query += " AND NOT is_read"
+	}
+
+	// Lets the alerts screen filter to just the events that matter, without
+	// the client having to know which kinds map to which severity.
+	if sev := c.Query("severity"); sev == "critical" || sev == "warning" || sev == "info" {
+		query += " AND severity = '" + sev + "'"
 	}
 	query += " ORDER BY created_at DESC LIMIT $2"
 	args = append(args, limit)
@@ -233,7 +239,7 @@ func ListAlerts(c *gin.Context) {
 		var lat, lng sql.NullFloat64
 		var geofenceID sql.NullInt64
 
-		if err := rows.Scan(&a.ID, &a.DeviceSerial, &a.Kind, &a.Title, &a.Detail,
+		if err := rows.Scan(&a.ID, &a.DeviceSerial, &a.Kind, &a.Severity, &a.Title, &a.Detail,
 			&lat, &lng, &geofenceID, &a.IsRead, &a.CreatedAt); err != nil {
 			continue
 		}

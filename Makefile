@@ -119,6 +119,7 @@ export DB_HOST DB_PORT DB_USER DB_PASSWORD DB_NAME DB_SSLMODE
 export REDIS_HOST REDIS_PORT REDIS_PASSWORD
 export MQTT_BROKER MQTT_USER MQTT_PASSWORD MQTT_TOPIC MQTT_PORT MQTT_HOST
 export JWT_SECRET JWT_EXPIRY_HOURS CERT_SIGNING_KEY
+export VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT
 export SERVER_PORT APP_ENV APP_DOMAIN ALLOWED_ORIGINS
 export API_PORT API_URL TILESERVER_PORT
 export SEED_PASSWORD DOCKER PG_CONTAINER REDIS_CONTAINER MQTT_CONTAINER
@@ -133,8 +134,9 @@ SEED_PASSWORD ?= password123
         db-create db-migrate db-seed db-journey db-reset db-shell db-dump db-restore \
         create-admin create-user create-device assign-device list-users list-devices stats \
         run run-frontend stop stop-all build build-backend build-frontend \
-        mqtt-test mqtt-test-bad mqtt-sub mqtt-gap mqtt-replay mqtt-legacy \
-        cert-keygen verify-chain cert-verify \
+        mqtt-test mqtt-test-bad mqtt-sub mqtt-gap mqtt-replay mqtt-legacy mqtt-odometer \
+        mqtt-theft mqtt-obey mqtt-commands \
+        cert-keygen verify-chain cert-verify vapid-keygen \
         health test test-all smoke lint fmt tidy \
         deploy-check deploy-db deploy-health
 
@@ -330,8 +332,28 @@ mqtt-legacy: ## Publish with the old plaintext secret instead of an HMAC
 		-device "$(or $(DEVICE),DEVICEADMIN)" \
 		-secret "$(or $(SECRET),357951)" -legacy-auth -count 3 -interval 500ms
 
+mqtt-odometer: ## Drive a straight line so the odometer gains a known distance [STEPS=] [STEP_METERS=]
+	@cd $(BACKEND_DIR) && go run ./cmd/mqttsim \
+		-device "$(or $(DEVICE),DEVICEADMIN)" \
+		-secret "$(or $(SECRET),357951)" \
+		-distance-steps $(or $(STEPS),11) \
+		-step-meters $(or $(STEP_METERS),100)
+
+mqtt-obey: ## Run a virtual device that receives and acknowledges commands
+	@cd $(BACKEND_DIR) && go run ./cmd/mqttsim \
+		-device "$(or $(DEVICE),DEVICEADMIN)" \
+		-secret "$(or $(SECRET),357951)" -obey -interval "$(or $(INTERVAL),30s)"
+
+mqtt-theft: ## Run a theft scenario: tow, power cut, jamming, ignition, impact
+	@cd $(BACKEND_DIR) && go run ./cmd/mqttsim \
+		-device "$(or $(DEVICE),DEVICEADMIN)" \
+		-secret "$(or $(SECRET),357951)" -theft
+
 mqtt-sub: ## Watch every message on the broker
 	@mosquitto_sub -h localhost -p $(MQTT_PORT) -t 'devices/#' -v
+
+mqtt-commands: ## Watch the command downlink for a device
+	@mosquitto_sub -h localhost -p $(MQTT_PORT) -t 'devices/+/commands' -t 'devices/+/ack' -v
 
 # --------------------------------------------------------------- integrity
 cert-keygen: ## Generate the Ed25519 certificate signing key
@@ -344,6 +366,9 @@ verify-chain: ## Replay a device hash chain. SERIAL=DEVICEADMIN
 cert-verify: ## Verify a certificate file offline. FILE=certificate.json
 	@test -n "$(FILE)" || { echo "FILE is required: make cert-verify FILE=certificate.json"; exit 1; }
 	@cd $(BACKEND_DIR) && go run ./cmd/cli cert-verify -file "$(abspath $(FILE))" $(if $(PUBKEY),-public-key "$(PUBKEY)")
+
+vapid-keygen: ## Generate the Web Push (VAPID) key pair
+	@cd $(BACKEND_DIR) && go run ./cmd/cli vapid-keygen
 
 # ----------------------------------------------------------------- quality
 health: ## Check every service is reachable and healthy

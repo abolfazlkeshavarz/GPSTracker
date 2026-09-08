@@ -44,6 +44,13 @@ type Config struct {
     // previously issued documents still works, since that only needs the
     // public key embedded in them.
     CertSigningKey string
+
+    // VAPID identity for Web Push. Without a key pair the push channel stays
+    // disabled and the app falls back to in-page alerts only, so an
+    // environment that never configured it still runs.
+    VAPIDPublicKey  string
+    VAPIDPrivateKey string
+    VAPIDSubject    string
 }
 
 // insecureDevSecret is the fallback signing key. It is public knowledge (it
@@ -114,6 +121,12 @@ func Load() *Config {
 
         // Server
         CertSigningKey: getEnv("CERT_SIGNING_KEY", ""),
+
+        // Web Push
+        VAPIDPublicKey:  getEnv("VAPID_PUBLIC_KEY", ""),
+        VAPIDPrivateKey: getEnv("VAPID_PRIVATE_KEY", ""),
+        VAPIDSubject:    getEnv("VAPID_SUBJECT", "mailto:support@localhost"),
+
         ServerPort: getEnv("SERVER_PORT", "8080"),
         SSLMode:    getEnv("DB_SSLMODE", "disable"),
         Env:        env,

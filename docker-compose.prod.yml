@@ -99,6 +99,12 @@ services:
       # Empty disables certificate issuing; the rest of the app is unaffected.
       CERT_SIGNING_KEY: ${CERT_SIGNING_KEY:-}
 
+      # Empty disables Web Push; alerts then reach only open tabs, never a
+      # phone in someone's pocket. Generate with `make vapid-keygen`.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:support@localhost}
+
       SERVER_PORT: 8080
       APP_ENV: production
       APP_DOMAIN: ${APP_DOMAIN}

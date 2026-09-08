@@ -177,15 +177,19 @@ func storePoint(
         INSERT INTO location_history
             (device_serial, lat, lng, speed, satellites, csq, battery, ignition,
              heading, altitude, hdop, operator, fix_age_ms,
+             ext_power, jamming,
              recorded_at, received_at, is_backfill,
              prev_hash, record_hash, auth_method)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),$15,$16,$17,$18)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),$17,$18,$19,$20)
         ON CONFLICT (device_serial, recorded_at) DO NOTHING
         RETURNING id`,
 		msg.Device, msg.Lat, msg.Lng, msg.Speed, msg.Satellites, msg.CSQ,
 		msg.Battery, ign,
 		nullFloat(msg.Heading), nullFloat(msg.Altitude), nullFloat(msg.HDOP),
 		nullString(msg.Operator), nullInt(msg.FixAgeMs),
+		// Passed through as-is: a nil pointer stores NULL, which keeps "this
+		// firmware does not report it" distinct from a reported false.
+		msg.ExtPower, msg.Jamming,
 		recordedAt, isBackfill,
 		prevHash, recordHash, string(method),
 	).Scan(&insertedID)

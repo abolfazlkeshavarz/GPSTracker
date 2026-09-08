@@ -54,6 +54,7 @@ func init() {
 		{"verify-chain", "Replay a device hash chain and report tampering", cmdVerifyChain, true},
 		{"cert-keygen", "Generate the Ed25519 certificate signing key", cmdCertKeygen, false},
 		{"cert-verify", "Verify a trip certificate file offline", cmdCertVerify, false},
+		{"vapid-keygen", "Generate the Web Push (VAPID) key pair", cmdVAPIDKeygen, false},
 	}
 }
 

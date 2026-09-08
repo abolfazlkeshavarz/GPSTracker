@@ -53,6 +53,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
     // account on this system. That is the point of signing asymmetrically.
     router.GET("/api/certificate-key", GetCertificatePublicKey)
 
+    // Public: the VAPID application server key is public by definition, and
+    // the client needs it before it can offer to enable notifications.
+    router.GET("/api/push/vapid-key", GetVAPIDKey)
+
     // Health check
     router.GET("/health", func(c *gin.Context) {
         c.JSON(200, gin.H{"status": "ok"})
@@ -81,6 +85,28 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
         // Device customization
         authorized.PUT("/devices/:serial/name", RenameDevice)
+
+        // Odometer: lifetime distance total, accumulated on the ingest path.
+        authorized.GET("/devices/:serial/odometer", GetOdometer)
+        authorized.PUT("/devices/:serial/odometer", SetOdometer)
+
+        // The configurator: per-device alert rules and reporting interval.
+        authorized.GET("/devices/:serial/settings", GetDeviceSettings)
+        authorized.PUT("/devices/:serial/settings", UpdateDeviceSettings)
+
+        // Remote control. Issuing is rate limited: these reach a physical
+        // vehicle, so a runaway client or a stolen token must not be able to
+        // flood the broker with engine commands.
+        authorized.POST("/devices/:serial/commands", RateLimitMiddleware(20, time.Minute), IssueCommand)
+        authorized.GET("/devices/:serial/commands", ListCommands)
+
+        // Plan and warranty status.
+        authorized.GET("/devices/:serial/subscription", GetDeviceSubscription)
+
+        // Web Push registration for this browser / installed PWA.
+        authorized.POST("/push/subscribe", SubscribePush)
+        authorized.POST("/push/unsubscribe", UnsubscribePush)
+        authorized.POST("/push/test", RateLimitMiddleware(5, time.Minute), TestPush)
 
         // Geofencing
         authorized.GET("/devices/:serial/geofences", ListGeofences)
@@ -121,6 +147,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
         admin.DELETE("/devices/:serial", AdminDeleteDevice)
         admin.POST("/devices/:serial/deactivate", AdminDeactivateDevice)
         admin.POST("/devices/:serial/assign", AdminAssignDeviceToUser)
+
+        // Commercial: plan renewal and the inventory/warranty fields. Only an
+        // admin may change these — a customer extending their own
+        // subscription would make the whole thing decorative.
+        admin.POST("/devices/:serial/subscription", AdminRenewSubscription)
+        admin.PUT("/devices/:serial/inventory", AdminUpdateInventory)
         
         // Audit logs
         admin.GET("/logs", AdminGetLogs)

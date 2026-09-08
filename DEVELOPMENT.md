@@ -223,6 +223,190 @@ The UI marks recovered stretches with a dashed amber line on the history map
 and says how many points were recovered, so nobody wonders why the map filled
 in after the fact.
 
+## Odometer
+
+A monotonic **lifetime distance counter** per device, in its own
+`device_odometer` table. Unlike the per-range distance in a track summary
+(re-summed from history on every request), this is a running total folded in
+one fix at a time on the ingest path.
+
+`UpdateOdometer` in `internal/services/odometer.go` runs after every stored
+**live** point:
+
+- The hop from the last counted position is added when it is between the
+  **8 m noise floor** and a **10 km max-hop** ceiling.
+- Below 8 m the anchor does not move, so a parked vehicle cannot drift up
+  kilometres one sub-threshold step at a time (same noise floor `BuildTrack`
+  uses).
+- Above 10 km it is treated as a teleport — GPS glitch, or a cold start
+  somewhere new: the anchor jumps to the new position but the distance is not
+  counted.
+
+Backfilled points are deliberately **excluded**: they arrive out of
+chronological order, so measuring their hop from the last-counted position
+would zig-zag the total. Kilometres driven through a coverage gap are still
+recovered by `BuildTrack` over the replayed history.
+
+```
+GET /api/devices/:serial/odometer      -> { total_meters, total_km, updated_at }
+PUT /api/devices/:serial/odometer      { "total_km": 48210 }
+```
+
+`PUT` overwrites the reading — to match the vehicle dashboard when a tracker
+is fitted, or to reset to `0` — and leaves the last-counted anchor untouched,
+so the next point does not make the counter jump.
+
+```bash
+make mqtt-odometer                       # drive 1 km in 100 m steps
+make mqtt-odometer STEPS=21 STEP_METERS=250
+```
+
+`cmd/mqttsim -distance-steps N` walks due east in fixed ground steps with
+timestamps 5 s apart, so the expected gain is `(N-1) * step-meters`. Keep `N`
+at 30 or below to stay inside the 3-minute backfill threshold.
+
+## The alert engine
+
+Every rule answers a question an owner actually asks, and each is evaluated
+against a single live point on the MQTT ingest path
+(`internal/mqtt/alerts.go`).
+
+| Rule | Fires on | Severity |
+|---|---|---|
+| `tow` | movement ≥ 8 km/h with the ignition **off** | critical |
+| `power_cut` / `power_restored` | `ext_power` transition | critical / info |
+| `impact` | device-reported shock ≥ 4 g | critical |
+| `jamming` | modem reports no usable signal for 4 consecutive reads | critical |
+| `sos` | panic button | critical |
+| `overspeed` | speed above the per-device limit | warning |
+| `harsh_accel` / `harsh_brake` / `harsh_corner` | accelerometer thresholds | warning |
+| `ignition_on` / `ignition_off` | ignition transition | info |
+| `geofence_enter` / `geofence_exit`, `low_battery`, `offline` / `back_online` | as before | mixed |
+
+Three properties are load-bearing across all of them:
+
+1. **Rules fire on transitions, not states.** A device with the ignition on
+   reports that every 30 seconds; alerting on the state would produce 120
+   notifications an hour. The state is recorded *even when the rule is switched
+   off*, so re-enabling it does not immediately fire against a stale baseline.
+
+2. **Rules that cannot be a transition are debounced** with a per-rule cooldown
+   claimed in a single `UPDATE ... RETURNING`. Doing the check and the stamp as
+   two statements lets two points arriving together both pass.
+
+3. **Everything except SOS is switchable per device.** A panic button that a
+   settings screen can disable is a liability.
+
+`severityFor` derives severity from the kind rather than storing it per rule,
+so the two cannot disagree — and it drives push urgency, so a theft alert
+demoted to `info` would be *delivered late*, not merely shown quietly.
+
+```bash
+make mqtt-theft   # tow -> power cut -> jamming -> ignition -> impact
+```
+
+## Remote control
+
+Commands travel `devices/<serial>/commands`; acknowledgements come back on
+`devices/<serial>/ack`. Both directions are **HMAC-signed with the device
+secret** — without that, anyone able to write to the broker could stop any
+vehicle on it.
+
+Commands are **queued in Postgres**, not fired and forgotten. A device on GPRS
+is routinely unreachable for a minute, and the one question this feature must
+answer honestly is "did the engine actually cut?". `pending → sent → acked`
+can answer that; a publish call cannot. Undelivered commands are retried by a
+sweeper and **expire after 30 minutes** — silently executing a stale
+engine-cut when a unit finally reconnects would be worse than dropping it.
+
+### The immobiliser interlock
+
+Engine cut-off is refused above 10 km/h, **in both the server and the
+firmware**. An immobiliser that can stop a car at 90 km/h is a way to kill
+someone; neither check is allowed to be the only one. The server also requires
+`confirm: true` on the API call, so the confirmation the UI shows cannot be
+bypassed by calling the endpoint directly.
+
+If the device has no current fix the cut is *allowed* — a stolen vehicle whose
+tracker has just been jammed is exactly when an owner most needs it to work.
+
+```bash
+make mqtt-obey    # a virtual device that verifies signatures and acks
+make mqtt-commands # watch the downlink and the acks
+```
+
+## Notifications (PWA + Web Push)
+
+The WebSocket reaches a tab that is already open. Web Push is the only thing
+that reaches someone whose phone is in their pocket at 3am, which is precisely
+when the theft alerts matter — so both run, and they are complementary rather
+than redundant.
+
+```bash
+make vapid-keygen   # once per environment
+```
+
+Set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`. **Without them
+push stays disabled** and the rest of the app is unaffected. Note they belong
+in `.env.docker` locally, not `tracking-backend/.env`: the Makefile exports
+every variable it knows about, and an exported-but-empty one still counts as
+set, which stops `godotenv` loading the real value.
+
+The service worker (`src/sw.ts`, built with `injectManifest` — a generated
+worker cannot handle `push`) does three things, in order of importance:
+push notifications, the offline app shell, and update handling.
+
+Details worth keeping:
+
+- **Permission is only ever requested from a click.** Browsers permanently
+  deny an origin that prompts on load, and a denied origin cannot ask again —
+  which would remove the only channel that reaches a closed app.
+- **Critical alerts get `requireInteraction`, a distinct vibration pattern and
+  `Urgency: high`**; routine ones get `Urgency: low` so they do not wake the
+  radio.
+- **Notifications collapse by `kind`+`device`**, so a flapping geofence leaves
+  one notification rather than forty — except impact, SOS, power-cut and tow,
+  which are deliberately uncollapsed so a second one is never swallowed.
+- **Dead endpoints are pruned** on HTTP 404/410, or the server retries a dead
+  browser forever.
+- **The subscription is re-synced on every session start** and on
+  `pushsubscriptionchange`. A browser can rotate or drop a subscription on its
+  own, and the failure mode is silent: notifications simply stop.
+- **`registerType: 'prompt'`**, not `autoUpdate`: a shell that swaps itself
+  mid-session can end up running against an API it was not built for.
+
+On **iOS, Web Push only works once the app is installed to the Home Screen**,
+and there is no `beforeinstallprompt` to raise — so the install banner detects
+iOS and gives Share-menu instructions instead.
+
+### Verifying it
+
+The dev server serves a stand-in worker; the real one only exists in a build.
+`npm run preview` serves `dist/` with the same `/api` proxy, which is where to
+test registration, precaching and push for real.
+
+## Selling and managing a unit
+
+Two clocks, deliberately modelled apart because they are easy to conflate:
+
+- **Subscription** — platform access, sold per unit. Every device gets a
+  **90-day trial** on activation (`services.EnsureTrial`, idempotent, so
+  re-registering does not hand out another three months). Renewal *adds* to
+  remaining time if the plan is live and starts from now if it lapsed, so a
+  customer who forgot for a month does not pay for that month.
+- **Warranty** — hardware cover, **18 months from the purchase date**, not
+  from activation: a unit that sat in a drawer for two months has sixteen
+  months left. Calendar months, not 30-day arithmetic.
+
+A sweeper warns 7 days ahead and again on expiry, once each per cycle — the
+`warned_at` / `expired_at` markers are what stop a daily sweep training people
+to ignore the reminder.
+
+Admin-only: `POST /api/admin/devices/:serial/subscription` and
+`PUT /api/admin/devices/:serial/inventory` (IMEI, model, SIM, purchase date,
+warranty months). A customer extending their own subscription would make the
+whole thing decorative.
+
 ## Tamper-evident history
 
 The second differentiator: history that can be **shown** to be unaltered,
@@ -440,7 +624,20 @@ The old firmware remains compatible — the new fields are simply absent.
   to Postgres, it returns `gps_bars: 0, gprs_bars: 0` instead of recomputing
   them from satellites/CSQ. `calculateGPSBars`/`calculateGPRSBars` in the mqtt
   package would need to move somewhere both paths can reach.
-- No geofencing, trip segmentation, alerts, or reporting.
+- No trip segmentation or scheduled reporting. Geofencing, the alert engine,
+  remote control, the odometer, subscriptions and push notifications are
+  implemented (see the sections above).
+- **Push cannot be verified in a headless pane.** Service-worker registration
+  and `Notification.permission` are both blocked there, so the worker is
+  checked statically (it parses, the precache manifest is injected, the
+  handlers are present) and the enrolment endpoints are covered by `make
+  smoke`. Actual delivery needs a real browser.
+- **The jamming signal is a heuristic**, not a dedicated detector: the SIM800
+  has no jam-detect line, so it is inferred from consecutive no-signal reads.
+  A long tunnel with a dead cell at the end can produce a false positive.
+- **`set_interval` is stored server-side and pushed best-effort.** A device
+  that never comes back online keeps its old interval; the stored value is
+  authoritative and re-applied on the next successful delivery.
 
 ### Engineering gaps
 

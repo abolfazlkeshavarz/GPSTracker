@@ -13,6 +13,7 @@ import (
     "tracking-backend/internal/config"
     "tracking-backend/internal/db"
     "tracking-backend/internal/mqtt"
+    "tracking-backend/internal/push"
     "tracking-backend/internal/utils"
 )
 
@@ -46,10 +47,32 @@ func main() {
         cfg.MQTTTopic,
     )
 
+    // Web Push. Disabled without a VAPID key pair, in which case alerts still
+    // reach open tabs over the WebSocket — they just cannot reach a phone in
+    // someone's pocket.
+    push.Configure(push.Config{
+        PublicKey:  cfg.VAPIDPublicKey,
+        PrivateKey: cfg.VAPIDPrivateKey,
+        Subject:    cfg.VAPIDSubject,
+    })
+    if push.Enabled() {
+        log.Println("Web Push enabled")
+    } else {
+        log.Println("Web Push disabled (set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY to enable)")
+    }
+
     // Offline/back-online alerts have no triggering message to hook, so they
     // are polled. 60s keeps the delay before an alert fires short without
     // hammering Postgres with a full-device-table scan.
     go mqtt.StartOfflineSweeper(db.DB, db.RedisClient, 60*time.Second)
+
+    // Commands that could not be delivered when they were issued, and stale
+    // ones that should now expire rather than execute late.
+    go mqtt.StartCommandSweeper(db.DB, 30*time.Second)
+
+    // Plan expiry is calendar-scale; an hour's delay on a renewal reminder is
+    // invisible to a customer.
+    go mqtt.StartSubscriptionSweeper(db.DB, db.RedisClient, time.Hour)
 
     router := api.SetupRouter(cfg)
 
@@ -89,6 +112,8 @@ func main() {
 
     mqtt.StopSubscriber()
     mqtt.StopOfflineSweeper()
+    mqtt.StopCommandSweeper()
+    mqtt.StopSubscriptionSweeper()
 
     log.Println("Shutdown complete")
 }

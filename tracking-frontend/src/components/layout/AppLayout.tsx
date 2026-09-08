@@ -5,6 +5,7 @@ import {
   PlusCircle,
   LogOut,
   Shield,
+  ShieldCheck,
   Menu,
   X,
   MapPin,
@@ -101,6 +102,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { path: "/dashboard", label: t("dashboard"), icon: LayoutDashboard },
     { path: "/alerts", label: t("alerts"), icon: Bell, badge: unreadAlerts },
     { path: "/activate", label: t("activate.device"), icon: PlusCircle },
+    { path: "/integrity", label: t("integrity.title"), icon: ShieldCheck },
     { path: "/account", label: t("account"), icon: UserCircle },
     { path: "/admin", label: "Admin Panel", icon: Shield, adminOnly: true },
   ].filter((i) => !i.adminOnly || user?.role === "admin") as NavItem[];

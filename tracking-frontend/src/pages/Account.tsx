@@ -5,6 +5,7 @@ import ResponsiveLayout from "../components/layout/ResponsiveLayout";
 import { useLanguage } from "../context/LanguageContext";
 import { getMe, changeMyPassword } from "../api/account";
 import { Badge, Button, Card, CardHeader, Input, PageHeading, Skeleton } from "../components/ui";
+import NotificationSettings from "../components/pwa/NotificationSettings";
 
 export default function Account() {
   const { t } = useLanguage();
@@ -53,6 +54,13 @@ export default function Account() {
         </Card>
 
         <ChangePasswordCard t={t} />
+
+        {/* Push enrolment. Spans both columns: it is the setting that decides
+            whether the theft alerts reach anyone, so it should not read as a
+            footnote next to the password form. */}
+        <div className="lg:col-span-2">
+          <NotificationSettings />
+        </div>
       </div>
     </ResponsiveLayout>
   );

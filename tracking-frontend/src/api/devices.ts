@@ -20,6 +20,25 @@ export const getSignal = async (serial: string) => {
   return response.data;
 };
 
+export interface Odometer {
+  device: string;
+  total_meters: number;
+  total_km: number;
+  updated_at?: string;
+}
+
+/** Lifetime distance total for a device, accumulated server-side on ingest. */
+export const getOdometer = async (serial: string): Promise<Odometer> => {
+  const response = await api.get(`/devices/${serial}/odometer`);
+  return response.data;
+};
+
+/** Overwrites the odometer reading, e.g. to match the vehicle dashboard or reset to 0. */
+export const setOdometer = async (serial: string, totalKm: number): Promise<Odometer> => {
+  const response = await api.put(`/devices/${serial}/odometer`, { total_km: totalKm });
+  return response.data;
+};
+
 export const getHistory = async (serial: string, limit?: number, hours?: number) => {
   const params = new URLSearchParams();
   if (limit) params.append("limit", limit.toString());
@@ -167,6 +186,114 @@ export const downloadCertificate = async (serial: string, from: string, to: stri
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+};
+
+/* ------------------------------------------------------------- settings */
+
+export interface DeviceSettings {
+  device_serial: string;
+  /** 0 disables the overspeed rule rather than meaning a limit of 0 km/h. */
+  speed_limit_kmh: number;
+  report_interval_s: number;
+  alert_overspeed: boolean;
+  alert_ignition: boolean;
+  alert_tow: boolean;
+  alert_impact: boolean;
+  alert_harsh_driving: boolean;
+  alert_power_cut: boolean;
+  alert_jamming: boolean;
+  alert_low_battery: boolean;
+  alert_geofence: boolean;
+  alert_offline: boolean;
+  silent_mode: boolean;
+  updated_at?: string;
+}
+
+export const getDeviceSettings = async (serial: string): Promise<DeviceSettings> => {
+  const response = await api.get(`/devices/${serial}/settings`);
+  return response.data;
+};
+
+/** Patch: omitted fields are left as they are. */
+export const updateDeviceSettings = async (
+  serial: string,
+  patch: Partial<Omit<DeviceSettings, "device_serial" | "updated_at">>
+): Promise<DeviceSettings> => {
+  const response = await api.put(`/devices/${serial}/settings`, patch);
+  return response.data;
+};
+
+/* ------------------------------------------------------------- commands */
+
+export type CommandName =
+  | "engine_cut"
+  | "engine_restore"
+  | "door_lock"
+  | "door_unlock"
+  | "locate"
+  | "reboot"
+  | "set_interval";
+
+export interface DeviceCommand {
+  id: number;
+  device_serial: string;
+  command: CommandName;
+  params?: Record<string, unknown>;
+  status: "pending" | "sent" | "acked" | "failed" | "expired";
+  issued_at: string;
+  sent_at?: string;
+  acked_at?: string;
+  result?: string;
+}
+
+/**
+ * Queues a command. `confirm` is required server-side for engine_cut and
+ * reboot, so the interlock cannot be bypassed by calling the API directly.
+ */
+export const issueCommand = async (
+  serial: string,
+  command: CommandName,
+  options?: { confirm?: boolean; intervalS?: number }
+): Promise<DeviceCommand> => {
+  const response = await api.post(`/devices/${serial}/commands`, {
+    command,
+    confirm: options?.confirm ?? false,
+    interval_s: options?.intervalS,
+  });
+  return response.data;
+};
+
+export const getCommands = async (serial: string, limit = 20): Promise<{ commands: DeviceCommand[] }> => {
+  const response = await api.get(`/devices/${serial}/commands?limit=${limit}`);
+  return response.data;
+};
+
+/* --------------------------------------------------- subscription/warranty */
+
+export interface Subscription {
+  device_serial: string;
+  plan: "trial" | "basic" | "pro";
+  started_at: string;
+  expires_at: string;
+  days_remaining: number;
+  is_active: boolean;
+  is_expiring: boolean;
+}
+
+export interface Warranty {
+  device_serial: string;
+  purchase_date?: string;
+  months: number;
+  expires_at?: string;
+  days_remaining: number;
+  is_active: boolean;
+}
+
+export const getSubscription = async (
+  serial: string
+): Promise<{ subscription: Subscription | null; warranty: Warranty | null }> => {
+  const response = await api.get(`/devices/${serial}/subscription`);
+  return response.data;
 };
 
 export const activateDevice = async (serial: string, secret: string) => {

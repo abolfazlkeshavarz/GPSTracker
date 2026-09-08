@@ -40,6 +40,18 @@ type LocationMessageWithCSQ struct {
 	Altitude float64 `json:"altitude,omitempty"`
 	HDOP     float64 `json:"hdop,omitempty"`
 	FixAgeMs int     `json:"fix_age_ms,omitempty"`
+
+	// Anti-theft telemetry (firmware rev 4+). Pointers because "not reported"
+	// must stay distinguishable from a reported false — an older unit that
+	// never sends ext_power must not look like one whose battery was cut.
+	ExtPower *bool `json:"ext_power,omitempty"`
+	Jamming  *bool `json:"jamming,omitempty"`
+
+	// Event is a one-shot accelerometer or panic event riding along with the
+	// position fix: "impact", "harsh_accel", "harsh_brake", "harsh_corner",
+	// "sos". AccelG is its peak magnitude in g.
+	Event  string  `json:"event,omitempty"`
+	AccelG float64 `json:"accel_g,omitempty"`
 }
 
 func StartSubscriber(pg *sql.DB, rdb *redis.Client, broker, user, pass, topic string) {
@@ -75,6 +87,10 @@ func StartSubscriber(pg *sql.DB, rdb *redis.Client, broker, user, pass, topic st
 		}
 
 		log.Println("Subscribed to topic:", topic)
+
+		// Command acknowledgements ride the same connection and must be
+		// re-subscribed on every reconnect for the same reason locations are.
+		subscribeAcks(c, pg)
 	})
 
 	opts.SetConnectionLostHandler(func(_ mqtt.Client, err error) {
@@ -172,8 +188,15 @@ func handleMessage(pg *sql.DB, rdb *redis.Client, topic string, payload []byte) 
 	if !isBackfill {
 		services.SetDeviceOnline(loc.Device)
 
+		// Fold the fix into the lifetime distance total. Live points only: a
+		// backfilled point is out of chronological order, so measuring its
+		// hop from the last-counted position would zig-zag the odometer.
+		if err := services.UpdateOdometer(pg, loc.Device, loc.Lat, loc.Lng, recordedAt); err != nil {
+			log.Println("odometer update error:", err)
+		}
+
 		if ownerUserID.Valid {
-			evaluateAlerts(pg, rdb, ownerUserID.Int64, loc.Device, loc.Lat, loc.Lng, loc.Battery)
+			evaluateAlerts(pg, rdb, ownerUserID.Int64, loc.Device, loc)
 		}
 	}
 

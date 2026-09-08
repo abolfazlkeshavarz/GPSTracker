@@ -93,6 +93,33 @@ SELECT
     NOW() - ((60 - i) * INTERVAL '1 minute')
 FROM generate_series(0, 59) AS s(i);
 
+-- ------------------------------------------------- commercial sample data
+-- Seeded devices should look like SOLD devices, not bare serials: without a
+-- plan and a purchase date the subscription and warranty UI renders nothing,
+-- and a whole feature looks broken on a fresh database.
+
+UPDATE devices SET
+    imei            = '35000000000000' || substr(md5(serial), 1, 1),
+    model           = 'RG-100',
+    warranty_months = 18,
+    purchase_date   = CURRENT_DATE - INTERVAL '2 months'
+WHERE serial IN ('DEVICEADMIN', 'TRACKER-001', 'TRACKER-002');
+
+-- One healthy plan, one deliberately close to expiry so the warning state is
+-- visible without waiting three months for it.
+INSERT INTO device_subscription (device_serial, plan, started_at, expires_at)
+VALUES
+    ('DEVICEADMIN', 'pro',   NOW() - INTERVAL '30 days', NOW() + INTERVAL '335 days'),
+    ('TRACKER-001', 'trial', NOW() - INTERVAL '85 days', NOW() + INTERVAL '5 days'),
+    ('TRACKER-002', 'basic', NOW() - INTERVAL '10 days', NOW() + INTERVAL '355 days')
+ON CONFLICT (device_serial) DO NOTHING;
+
+-- A non-default configuration on one device, so the configurator is visibly
+-- doing something rather than showing defaults everywhere.
+INSERT INTO device_settings (device_serial, speed_limit_kmh)
+VALUES ('TRACKER-001', 110)
+ON CONFLICT (device_serial) DO NOTHING;
+
 COMMIT;
 
 \echo ''

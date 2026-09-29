@@ -26,7 +26,7 @@ export default function Register() {
 
     // Matches the server's rule, so the failure is immediate rather than a
     // round trip.
-    if (password.length < 6) {
+    if (password.length < 8) {
       setError("Password must be at least 6 characters.");
       return;
     }
@@ -99,7 +99,7 @@ export default function Register() {
               placeholder="••••••••"
               autoComplete="new-password"
               required
-              minLength={6}
+              minLength={8}
               hint="At least 6 characters."
               value={password}
               onChange={(e) => setPassword(e.target.value)}

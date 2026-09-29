@@ -147,6 +147,37 @@ jobs:
           path: mobile/build/ipa/GPSTracker-unsigned.ipa
           if-no-files-found: error
 
+  # Every Android build on a branch push is published as a pre-release, so
+  # an installable APK is always one click away. Not run for pull requests,
+  # whose code has not been accepted yet.
+  release-android:
+    name: Publish Android release
+    if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')
+    needs: android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Android build ${{ github.run_number }} (${{ github.ref_name }})
+          prerelease: true
+          body: |
+            Automatic Android build from `${{ github.ref_name }}` at ${{ github.sha }}.
+            Install `app-release.apk` on any phone, or the `app-<abi>-release.apk` matching your device.
+          files: |
+            dist/**/*.apk
+            dist/**/*.aab
+
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/mobile-v')

@@ -1,0 +1,300 @@
+{
+  "@@locale": "en",
+  "appName": "GPSTracker",
+  "tagline": "Your vehicle, always within reach.",
+  "phone": "Phone number",
+  "password": "Password",
+  "confirmPassword": "Confirm password",
+  "signIn": "Sign in",
+  "createAccount": "Create account",
+  "noAccount": "New here? Create an account",
+  "haveAccount": "Already have an account? Sign in",
+  "passwordTooShort": "Password must be at least 8 characters",
+  "passwordsDontMatch": "Passwords do not match",
+  "invalidPhone": "Enter a valid phone number",
+  "invalidCredentials": "Wrong phone number or password",
+  "accountExists": "An account with this number already exists",
+  "accountCreated": "Account created. Sign in to continue.",
+  "server": "Server",
+  "serverSettings": "Server connection",
+  "serverUrl": "Server address",
+  "serverUrlHelp": "The address of your tracking platform, e.g. https://example.com",
+  "mapTiles": "Map tile source",
+  "mapTilesHelp": "URL template containing the z, x and y tile placeholders",
+  "testConnection": "Test connection",
+  "connectionOk": "Server reachable",
+  "connectionFailed": "Could not reach the server",
+  "invalidUrl": "Enter a valid https:// address",
+  "insecureUrl": "Only https:// servers are allowed in release builds",
+  "serverChangedRelogin": "Server changed. Please sign in again.",
+  "restoreDefaults": "Restore defaults",
+  "save": "Save",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "retry": "Retry",
+  "close": "Close",
+  "settings": "Settings",
+  "language": "Language",
+  "appearance": "Appearance",
+  "themeSystem": "System",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "security": "Security",
+  "appLock": "Biometric lock",
+  "appLockDesc": "Require fingerprint, face or device PIN to open the app",
+  "appLockUnavailable": "No biometric or device lock is set up on this phone",
+  "unlockReason": "Unlock to view your vehicles",
+  "unlock": "Unlock",
+  "locked": "Locked",
+  "account": "Account",
+  "changePassword": "Change password",
+  "currentPassword": "Current password",
+  "newPassword": "New password",
+  "passwordChanged": "Password updated",
+  "wrongCurrentPassword": "Current password is incorrect",
+  "logout": "Sign out",
+  "logoutConfirm": "Sign out of this phone?",
+  "about": "About",
+  "version": "Version {v}",
+  "@version": {
+    "placeholders": {
+      "v": {
+        "type": "String"
+      }
+    }
+  },
+  "notifications": "Notifications",
+  "notificationsDesc": "Show alerts from your vehicles as phone notifications",
+  "garage": "Garage",
+  "noDevices": "No trackers yet",
+  "noDevicesHint": "Add the tracker installed in your vehicle using the serial and secret on its label.",
+  "addDevice": "Add tracker",
+  "serial": "Serial number",
+  "deviceSecret": "Device secret",
+  "activate": "Activate",
+  "activated": "Tracker added. {days} days of service included.",
+  "@activated": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "deviceNotFound": "No tracker with this serial",
+  "wrongSecret": "The device secret is incorrect",
+  "alreadyActivated": "This tracker is already registered",
+  "online": "Online",
+  "offline": "Offline",
+  "moving": "Moving",
+  "parked": "Parked",
+  "idling": "Engine on",
+  "noSignalYet": "Waiting for first position",
+  "justNow": "just now",
+  "minutesAgo": "{n} min ago",
+  "@minutesAgo": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "hoursAgo": "{n} h ago",
+  "@hoursAgo": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "daysAgo": "{n} d ago",
+  "@daysAgo": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "speed": "Speed",
+  "kmh": "km/h",
+  "km": "km",
+  "satellites": "Satellites",
+  "cellSignal": "Cell signal",
+  "battery": "Vehicle battery",
+  "ignition": "Ignition",
+  "on": "On",
+  "off": "Off",
+  "heading": "Heading",
+  "altitude": "Altitude",
+  "gpsAccuracy": "GPS accuracy",
+  "extPower": "External power",
+  "connected": "Connected",
+  "disconnected": "Cut",
+  "jamming": "Jamming",
+  "detected": "Detected",
+  "clear": "Clear",
+  "operator": "Operator",
+  "odometer": "Odometer",
+  "setOdometer": "Set odometer",
+  "odometerHint": "Match the reading on your dashboard",
+  "health": "Tracker health",
+  "healthExcellent": "Excellent",
+  "healthGood": "Good",
+  "healthFair": "Fair",
+  "healthPoor": "Poor",
+  "sensors": "What this tracker reports",
+  "live": "Live",
+  "journey": "Journey",
+  "control": "Control",
+  "alerts": "Alerts",
+  "zones": "Zones",
+  "today": "Today",
+  "yesterday": "Yesterday",
+  "pickDate": "Pick a day",
+  "distance": "Distance",
+  "drivingTime": "Driving",
+  "parkedTime": "Parked",
+  "maxSpeed": "Top speed",
+  "avgSpeed": "Avg speed",
+  "noJourney": "No movement recorded on this day",
+  "truncated": "Too many points; showing the first part of the day",
+  "trip": "Trip",
+  "stop": "Stop",
+  "replay": "Replay",
+  "backfill": "Delivered late (no coverage)",
+  "remoteControl": "Remote control",
+  "engineCut": "Cut engine",
+  "engineRestore": "Restore engine",
+  "doorLock": "Lock doors",
+  "doorUnlock": "Unlock doors",
+  "locate": "Locate now",
+  "reboot": "Restart tracker",
+  "slideToConfirm": "Slide to confirm",
+  "engineCutWarning": "The engine will only be cut when the vehicle is below 10 km/h. Use it for a stolen vehicle.",
+  "commandSent": "Sent to the vehicle",
+  "commandQueued": "Queued: the vehicle is not reachable right now",
+  "commandRefusedMoving": "Refused: the vehicle is moving",
+  "recentCommands": "Recent commands",
+  "statusPending": "Pending",
+  "statusSent": "Sent",
+  "statusAcked": "Confirmed",
+  "statusFailed": "Failed",
+  "statusExpired": "Expired",
+  "guardMode": "Guard mode",
+  "guardModeDesc": "Alert me the moment the vehicle leaves where it is parked now",
+  "guardArmed": "Armed — watching a {m} m circle",
+  "@guardArmed": {
+    "placeholders": {
+      "m": {
+        "type": "String"
+      }
+    }
+  },
+  "guardNeedsFix": "Needs a current position",
+  "markAllRead": "Mark all read",
+  "noAlerts": "All quiet. No alerts.",
+  "alertImpact": "Impact detected",
+  "alertSos": "SOS pressed",
+  "alertPowerCut": "Vehicle power cut",
+  "alertPowerRestored": "Vehicle power restored",
+  "alertTow": "Possible towing",
+  "alertJamming": "Signal jamming",
+  "alertOverspeed": "Speed limit exceeded",
+  "alertLowBattery": "Low vehicle battery",
+  "alertOffline": "Tracker stopped reporting",
+  "alertBackOnline": "Tracker back online",
+  "alertGeofenceEnter": "Entered a zone",
+  "alertGeofenceExit": "Left a zone",
+  "alertIgnitionOn": "Engine started",
+  "alertIgnitionOff": "Engine stopped",
+  "alertHarshAccel": "Harsh acceleration",
+  "alertHarshBrake": "Harsh braking",
+  "alertHarshCorner": "Sharp cornering",
+  "alertSubExpiring": "Service plan ending soon",
+  "alertSubExpired": "Service plan expired",
+  "alertGeneric": "Vehicle alert",
+  "newZone": "New zone",
+  "zoneName": "Zone name",
+  "radius": "Radius",
+  "meters": "{m} m",
+  "@meters": {
+    "placeholders": {
+      "m": {
+        "type": "String"
+      }
+    }
+  },
+  "triggerOn": "Alert when",
+  "triggerEnter": "Arrives",
+  "triggerExit": "Leaves",
+  "triggerBoth": "Both",
+  "zoneHint": "Long-press the map to place the centre",
+  "noZones": "No zones yet. Add home or work to know when the vehicle arrives or leaves.",
+  "deleteZoneConfirm": "Delete zone \"{name}\"?",
+  "@deleteZoneConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "vehicleSettings": "Vehicle settings",
+  "rename": "Rename",
+  "vehicleName": "Vehicle name",
+  "speedLimit": "Speed limit alert",
+  "speedLimitOff": "Off",
+  "reportInterval": "Reporting interval",
+  "seconds": "{n} s",
+  "@seconds": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "silentMode": "Silent mode",
+  "silentModeDesc": "Record alerts without notifying",
+  "alertTypes": "Alert types",
+  "saved": "Saved",
+  "findMyCar": "Walk to my car",
+  "awayFromYou": "{d} away",
+  "@awayFromYou": {
+    "placeholders": {
+      "d": {
+        "type": "String"
+      }
+    }
+  },
+  "locationDenied": "Allow location access to guide you to the vehicle",
+  "exportCsv": "Export history (CSV)",
+  "subscription": "Service plan",
+  "daysLeft": "{n} days left",
+  "@daysLeft": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "expired": "Expired",
+  "warranty": "Warranty",
+  "networkError": "No connection to the server",
+  "sessionExpired": "Your session expired. Please sign in again.",
+  "somethingWrong": "Something went wrong",
+  "showingCached": "Offline — showing last known data",
+  "realtimeOn": "Live",
+  "realtimeOff": "Reconnecting…",
+  "notReported": "Not reported",
+  "volts": "{v} V",
+  "@volts": {
+    "placeholders": {
+      "v": {
+        "type": "String"
+      }
+    }
+  },
+  "filterAll": "All",
+  "filterUnread": "Unread",
+  "severityCritical": "Critical",
+  "severityWarning": "Warning",
+  "severityInfo": "Info"
+}

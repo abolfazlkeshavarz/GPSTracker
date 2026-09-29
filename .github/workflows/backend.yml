@@ -1,0 +1,28 @@
+name: Backend
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["tracking-backend/**", ".github/workflows/backend.yml"]
+  pull_request:
+    paths: ["tracking-backend/**", ".github/workflows/backend.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tracking-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tracking-backend/go.mod
+          cache-dependency-path: tracking-backend/go.sum
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build ./...

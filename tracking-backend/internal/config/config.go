@@ -4,6 +4,7 @@ import (
     "log"
     "os"
     "strconv"
+    "strings"
 
     "github.com/joho/godotenv"
 )
@@ -51,6 +52,10 @@ type Config struct {
     VAPIDPublicKey  string
     VAPIDPrivateKey string
     VAPIDSubject    string
+
+    // TrustedProxies lists the proxy addresses/CIDRs whose X-Forwarded-For
+    // header is believed. Everything else is ignored.
+    TrustedProxies []string
 }
 
 // insecureDevSecret is the fallback signing key. It is public knowledge (it
@@ -93,12 +98,34 @@ func Load() *Config {
         log.Println("WARNING: JWT_SECRET is shorter than 32 characters")
     }
 
+    mqttBroker := getEnv("MQTT_BROKER", "tcp://localhost:1883")
+    mqttUser := getEnv("MQTT_USER", "")
+    mqttPassword := getEnv("MQTT_PASSWORD", "")
+    dbPassword := getEnv("DB_PASSWORD", "")
+    if env == "production" {
+        // Weak or default credentials used to be baked in as fallbacks, so a
+        // missing variable quietly shipped "admin" to production.
+        if dbPassword == "" || dbPassword == "admin" || dbPassword == "postgres" {
+            log.Fatal("DB_PASSWORD must be set to a strong value in production")
+        }
+        if mqttPassword == "" || mqttPassword == "admin" {
+            log.Fatal("MQTT_PASSWORD must be set to a strong value in production")
+        }
+    }
+
+    trusted := []string{}
+    for _, p := range strings.Split(getEnv("TRUSTED_PROXIES", "127.0.0.1,::1,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"), ",") {
+        if p = strings.TrimSpace(p); p != "" {
+            trusted = append(trusted, p)
+        }
+    }
+
     return &Config{
         // PostgreSQL
         DBHost:     getEnv("DB_HOST", "localhost"),
         DBPort:     getEnv("DB_PORT", "5432"),
         DBUser:     getEnv("DB_USER", "postgres"),
-        DBPassword: getEnv("DB_PASSWORD", "admin"),
+        DBPassword: dbPassword,
         DBName:     getEnv("DB_NAME", "tracking_db"),
 
         // Redis
@@ -107,9 +134,9 @@ func Load() *Config {
         RedisPassword: getEnv("REDIS_PASSWORD", ""),
 
         // MQTT
-        MQTTBroker:   getEnv("MQTT_BROKER", "tcp://85.9.123.30:1883"),
-        MQTTUser:     getEnv("MQTT_USER", "testquitto"),
-        MQTTPassword: getEnv("MQTT_PASSWORD", "admin"),
+        MQTTBroker:   mqttBroker,
+        MQTTUser:     mqttUser,
+        MQTTPassword: mqttPassword,
         MQTTTopic:    getEnv("MQTT_TOPIC", "devices/+/location"),
 
         // JWT
@@ -130,6 +157,8 @@ func Load() *Config {
         ServerPort: getEnv("SERVER_PORT", "8080"),
         SSLMode:    getEnv("DB_SSLMODE", "disable"),
         Env:        env,
+
+        TrustedProxies: trusted,
     }
 }
 

@@ -114,12 +114,12 @@ type SignalQuality struct {
 
 type RegisterRequest struct {
 	Phone    string `json:"phone" binding:"required"`
-	Password string `json:"password" binding:"required,min=6"`
+	Password string `json:"password" binding:"required,min=8,max=72"`
 }
 
 type LoginRequest struct {
 	Phone    string `json:"phone" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Password string `json:"password" binding:"required,max=72"`
 }
 
 type LoginResponse struct {
@@ -387,7 +387,7 @@ type UpdateMeRequest struct {
 
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
-	NewPassword     string `json:"new_password" binding:"required,min=6"`
+	NewPassword     string `json:"new_password" binding:"required,min=8,max=72"`
 }
 
 type RenameDeviceRequest struct {

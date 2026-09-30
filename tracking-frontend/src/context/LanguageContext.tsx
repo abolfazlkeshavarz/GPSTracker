@@ -275,7 +275,7 @@ const translations = {
     'update.password': 'Update Password',
     'password.updated': 'Password updated successfully',
     'passwords.dont.match': 'New passwords do not match',
-    'password.too.short': 'New password must be at least 6 characters',
+    'password.too.short': 'New password must be at least 8 characters',
 
     // Device customization
     'rename.device': 'Rename device',
@@ -659,7 +659,7 @@ const translations = {
     'update.password': 'به‌روزرسانی رمز عبور',
     'password.updated': 'رمز عبور با موفقیت به‌روزرسانی شد',
     'passwords.dont.match': 'رمزهای عبور جدید یکسان نیستند',
-    'password.too.short': 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد',
+    'password.too.short': 'رمز عبور جدید باید حداقل ۸ کاراکتر باشد',
 
     // Device customization
     'rename.device': 'تغییر نام دستگاه',

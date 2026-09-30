@@ -108,6 +108,7 @@ services:
       SERVER_PORT: 8080
       APP_ENV: production
       APP_DOMAIN: ${APP_DOMAIN}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       TZ: ${TZ:-Asia/Tehran}
     # No ports: reachable only through nginx.

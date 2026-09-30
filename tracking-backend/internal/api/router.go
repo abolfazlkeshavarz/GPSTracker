@@ -12,6 +12,14 @@ import (
 func SetupRouter(cfg *config.Config) *gin.Engine {
     router := gin.Default()
 
+    // gin trusts every proxy by default, which lets any client pick its own
+    // ClientIP() with a forged X-Forwarded-For header. That silently defeats
+    // the per-IP rate limiter on login and activation. Only the reverse proxy
+    // in front of the backend may set the header.
+    if err := router.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+        panic("invalid TRUSTED_PROXIES: " + err.Error())
+    }
+
     // Reject absurdly large request bodies before they are parsed.
     router.Use(func(c *gin.Context) {
         c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20) // 1 MiB

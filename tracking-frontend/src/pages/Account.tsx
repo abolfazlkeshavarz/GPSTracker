@@ -91,7 +91,7 @@ function ChangePasswordCard({ t }: { t: (k: string) => string }) {
     setError(null);
     setSuccess(false);
 
-    if (next.length < 6) {
+    if (next.length < 8) {
       setError(t("password.too.short"));
       return;
     }
@@ -134,7 +134,7 @@ function ChangePasswordCard({ t }: { t: (k: string) => string }) {
           onChange={(e) => setNext(e.target.value)}
           leadingIcon={<KeyRound className="w-4 h-4" />}
           autoComplete="new-password"
-          minLength={6}
+          minLength={8}
           required
         />
         <Input
@@ -144,7 +144,7 @@ function ChangePasswordCard({ t }: { t: (k: string) => string }) {
           onChange={(e) => setConfirm(e.target.value)}
           leadingIcon={<KeyRound className="w-4 h-4" />}
           autoComplete="new-password"
-          minLength={6}
+          minLength={8}
           required
         />
 

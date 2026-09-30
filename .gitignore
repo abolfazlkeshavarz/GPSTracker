@@ -39,3 +39,6 @@ dist/
 # Production secrets and generated broker credentials
 .env.prod
 deploy/mosquitto/passwd
+
+# Compiled backend binary produced by deploy builds
+VPS/tracking-backend/server

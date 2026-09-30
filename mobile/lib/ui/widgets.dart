@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../core/app_state.dart';
 import '../core/api.dart';
+import '../core/config.dart';
 import '../models/models.dart';
 import 'format.dart';
 import 'theme.dart';
@@ -291,7 +292,7 @@ class AppMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cfg = AppScope.of(context).config;
+    final s = AppScope.of(context);
     final dark = Theme.of(context).brightness == Brightness.dark;
     return FlutterMap(
       mapController: controller,
@@ -312,13 +313,16 @@ class AppMap extends StatelessWidget {
       ),
       children: [
         TileLayer(
-          urlTemplate: cfg.tileUrl,
+          urlTemplate: s.tileUrl,
+          // If the configured map server is down or does not cover an area,
+          // tiles come from OpenStreetMap instead of leaving holes.
+          fallbackUrl: s.tileUrl == ServerConfig.fallbackTiles ? null : ServerConfig.fallbackTiles,
           userAgentPackageName: 'com.gpstracker.mobile',
           tileBuilder: dark ? darkModeTileBuilder : null,
           maxNativeZoom: 19,
         ),
         ...children,
-        const SimpleAttributionWidget(source: Text('OpenStreetMap')),
+        SimpleAttributionWidget(source: Text(s.mapAttribution)),
       ],
     );
   }

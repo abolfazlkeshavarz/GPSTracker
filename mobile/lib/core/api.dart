@@ -91,6 +91,17 @@ class Api {
     }
   }
 
+  /// Platform settings the admin controls, such as the map server. Public,
+  /// so it works before sign-in.
+  Future<Map<String, String>> appConfig() async {
+    final j = await get('/app-config');
+    return {
+      if (j is Map)
+        for (final e in j.entries)
+          if (e.value is String) e.key as String: e.value as String,
+    };
+  }
+
   // ------------------------------------------------------------ auth
 
   Future<(String, User)> login(String phone, String password) async {

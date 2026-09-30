@@ -9,7 +9,7 @@ class LIt extends L {
   LIt([String locale = 'it']) : super(locale);
 
   @override
-  String get appName => 'GPSTracker';
+  String get appName => 'Rad Gard';
 
   @override
   String get tagline => 'Il tuo veicolo, sempre a portata di mano.';
@@ -70,7 +70,8 @@ class LIt extends L {
   String get mapTiles => 'Sorgente mappa';
 
   @override
-  String get mapTilesHelp => 'Modello URL con i segnaposto z, x e y';
+  String get mapTilesHelp =>
+      'Lascia vuoto per usare il server mappe della piattaforma, oppure inserisci un modello URL con z, x e y.';
 
   @override
   String get testConnection => 'Prova connessione';

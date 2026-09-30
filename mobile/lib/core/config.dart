@@ -8,12 +8,20 @@ class ServerConfig {
     'DEFAULT_SERVER',
     defaultValue: 'https://abolfazl.fun',
   );
-  static const defaultTiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  /// Used only when neither the user nor the server names a tile source,
+  /// and as the fallback when the configured server fails to return a tile.
+  static const fallbackTiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+  /// Pre-2.0 builds stored the OpenStreetMap template as an explicit choice;
+  /// it is now what "follow the server" falls back to.
+  static const _legacyDefaultTiles = fallbackTiles;
 
   static const _kServer = 'server_url';
   static const _kTiles = 'tile_url';
 
   final String serverUrl;
+  /// The user's own tile template, or empty to use the map server the
+  /// platform admin configured (GET /api/app-config).
   final String tileUrl;
 
   const ServerConfig({required this.serverUrl, required this.tileUrl});
@@ -22,7 +30,10 @@ class ServerConfig {
     final p = await SharedPreferences.getInstance();
     return ServerConfig(
       serverUrl: p.getString(_kServer) ?? defaultServer,
-      tileUrl: p.getString(_kTiles) ?? defaultTiles,
+      tileUrl: switch (p.getString(_kTiles)) {
+        null || _legacyDefaultTiles => '',
+        final v => v,
+      },
     );
   }
 
@@ -67,6 +78,7 @@ class ServerConfig {
   }
 
   static bool isValidTileTemplate(String raw) {
+    if (raw.trim().isEmpty) return true; // empty = follow the server
     final u = Uri.tryParse(raw.trim().replaceAll(RegExp(r'[{}]'), ''));
     return u != null &&
         (u.scheme == 'https' || (!kReleaseMode && u.scheme == 'http')) &&

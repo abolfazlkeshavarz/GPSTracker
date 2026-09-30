@@ -102,7 +102,7 @@ abstract class L {
   /// No description provided for @appName.
   ///
   /// In en, this message translates to:
-  /// **'GPSTracker'**
+  /// **'Rad Gard'**
   String get appName;
 
   /// No description provided for @tagline.
@@ -222,7 +222,7 @@ abstract class L {
   /// No description provided for @mapTilesHelp.
   ///
   /// In en, this message translates to:
-  /// **'URL template containing the z, x and y tile placeholders'**
+  /// **'Leave empty to use your platform\'s own map server, or enter a URL template with z, x and y.'**
   String get mapTilesHelp;
 
   /// No description provided for @testConnection.

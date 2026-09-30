@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appName": "GPSTracker",
+  "appName": "Rad Gard",
   "tagline": "Your vehicle, always within reach.",
   "phone": "Phone number",
   "password": "Password",
@@ -20,7 +20,7 @@
   "serverUrl": "Server address",
   "serverUrlHelp": "The address of your tracking platform, e.g. https://example.com",
   "mapTiles": "Map tile source",
-  "mapTilesHelp": "URL template containing the z, x and y tile placeholders",
+  "mapTilesHelp": "Leave empty to use your platform's own map server, or enter a URL template with z, x and y.",
   "testConnection": "Test connection",
   "connectionOk": "Server reachable",
   "connectionFailed": "Could not reach the server",

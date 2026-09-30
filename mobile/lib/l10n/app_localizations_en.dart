@@ -9,7 +9,7 @@ class LEn extends L {
   LEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appName => 'GPSTracker';
+  String get appName => 'Rad Gard';
 
   @override
   String get tagline => 'Your vehicle, always within reach.';
@@ -71,7 +71,7 @@ class LEn extends L {
 
   @override
   String get mapTilesHelp =>
-      'URL template containing the z, x and y tile placeholders';
+      'Leave empty to use your platform\'s own map server, or enter a URL template with z, x and y.';
 
   @override
   String get testConnection => 'Test connection';

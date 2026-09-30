@@ -1,6 +1,6 @@
 {
   "@@locale": "fa",
-  "appName": "GPSTracker",
+  "appName": "ردگَرد",
   "tagline": "خودروی شما، همیشه در دسترس.",
   "phone": "شماره تلفن",
   "password": "رمز عبور",
@@ -20,7 +20,7 @@
   "serverUrl": "آدرس سرور",
   "serverUrlHelp": "آدرس پلتفرم ردیابی، مثلاً https://example.com",
   "mapTiles": "منبع کاشی نقشه",
-  "mapTilesHelp": "الگوی آدرس شامل جای‌نگهدارهای z، x و y",
+  "mapTilesHelp": "برای استفاده از سرور نقشه پلتفرم خالی بگذارید، یا الگوی آدرس با z، x و y وارد کنید.",
   "testConnection": "آزمایش اتصال",
   "connectionOk": "سرور در دسترس است",
   "connectionFailed": "اتصال به سرور ممکن نشد",

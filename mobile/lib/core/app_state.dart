@@ -37,6 +37,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = AppState._(await ServerConfig.load(), prefs);
     await s._restore();
     WidgetsBinding.instance.addObserver(s);
+    s.refreshAppConfig();
     return s;
   }
 
@@ -50,6 +51,39 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   ThemeMode themeMode = ThemeMode.system;
   bool biometricLock = false;
   bool notificationsOn = true;
+
+  // ------------------------------------------------------------ map server
+  /// Tile template and attribution published by the platform admin.
+  String? serverTileUrl;
+  String? serverAttribution;
+
+  /// What the map actually loads: the user's override, else the admin's map
+  /// server, else OpenStreetMap.
+  String get tileUrl => config.tileUrl.isNotEmpty
+      ? config.tileUrl
+      : (serverTileUrl?.isNotEmpty ?? false)
+          ? serverTileUrl!
+          : ServerConfig.fallbackTiles;
+
+  String get mapAttribution => serverAttribution?.isNotEmpty ?? false
+      ? serverAttribution!
+      : '© OpenStreetMap contributors';
+
+  Future<void> refreshAppConfig() async {
+    try {
+      final cfg = await api.appConfig();
+      final tiles = cfg['map_tile_url'];
+      if (tiles != null && ServerConfig.isValidTileTemplate(tiles)) {
+        serverTileUrl = tiles;
+        await _prefs.setString('server_tiles', tiles);
+      }
+      serverAttribution = cfg['map_attribution'];
+      if (serverAttribution != null) await _prefs.setString('server_attr', serverAttribution!);
+      notifyListeners();
+    } catch (_) {
+      // Offline: the cached value from the last successful fetch stays.
+    }
+  }
 
   // ------------------------------------------------------------- session
   User? user;
@@ -75,6 +109,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     themeMode = ThemeMode.values[_prefs.getInt('theme') ?? 0];
     biometricLock = _prefs.getBool('bio_lock') ?? false;
     notificationsOn = _prefs.getBool('notif') ?? true;
+    serverTileUrl = _prefs.getString('server_tiles');
+    serverAttribution = _prefs.getString('server_attr');
     locked = biometricLock;
 
     String? token;
@@ -212,6 +248,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await next.save();
     config = next;
     api.config = next;
+    if (hostChanged) {
+      serverTileUrl = null;
+      serverAttribution = null;
+      await _prefs.remove('server_tiles');
+      await _prefs.remove('server_attr');
+      unawaited(refreshAppConfig());
+    }
     if (hostChanged && signedIn) {
       await logout(message: 'server');
     } else {

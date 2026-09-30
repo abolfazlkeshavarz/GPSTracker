@@ -9,7 +9,7 @@ class LFa extends L {
   LFa([String locale = 'fa']) : super(locale);
 
   @override
-  String get appName => 'GPSTracker';
+  String get appName => 'ردگَرد';
 
   @override
   String get tagline => 'خودروی شما، همیشه در دسترس.';
@@ -69,7 +69,8 @@ class LFa extends L {
   String get mapTiles => 'منبع کاشی نقشه';
 
   @override
-  String get mapTilesHelp => 'الگوی آدرس شامل جای‌نگهدارهای z، x و y';
+  String get mapTilesHelp =>
+      'برای استفاده از سرور نقشه پلتفرم خالی بگذارید، یا الگوی آدرس با z، x و y وارد کنید.';
 
   @override
   String get testConnection => 'آزمایش اتصال';

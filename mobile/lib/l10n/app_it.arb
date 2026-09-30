@@ -1,6 +1,6 @@
 {
   "@@locale": "it",
-  "appName": "GPSTracker",
+  "appName": "Rad Gard",
   "tagline": "Il tuo veicolo, sempre a portata di mano.",
   "phone": "Numero di telefono",
   "password": "Password",
@@ -20,7 +20,7 @@
   "serverUrl": "Indirizzo del server",
   "serverUrlHelp": "L'indirizzo della piattaforma, es. https://example.com",
   "mapTiles": "Sorgente mappa",
-  "mapTilesHelp": "Modello URL con i segnaposto z, x e y",
+  "mapTilesHelp": "Lascia vuoto per usare il server mappe della piattaforma, oppure inserisci un modello URL con z, x e y.",
   "testConnection": "Prova connessione",
   "connectionOk": "Server raggiungibile",
   "connectionFailed": "Impossibile raggiungere il server",

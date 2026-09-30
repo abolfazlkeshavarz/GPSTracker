@@ -118,7 +118,7 @@ class _ServerScreenState extends State<ServerScreen> {
         TextButton(
           onPressed: () => setState(() {
             _server.text = ServerConfig.defaultServer;
-            _tiles.text = ServerConfig.defaultTiles;
+            _tiles.text = '';
             _reachable = null;
           }),
           child: Text(l.restoreDefaults),

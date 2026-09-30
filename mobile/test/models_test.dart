@@ -90,7 +90,10 @@ void main() {
       expect(c.websocket.toString(), 'wss://example.com/tracker/api/ws');
     });
     test('tile template must contain placeholders', () {
-      expect(ServerConfig.isValidTileTemplate(ServerConfig.defaultTiles), isTrue);
+      expect(ServerConfig.isValidTileTemplate(ServerConfig.fallbackTiles), isTrue);
+      expect(ServerConfig.isValidTileTemplate(''), isTrue); // follow the server
+      expect(ServerConfig.isValidTileTemplate(
+          'https://maps.example.com/styles/osm-bright/{z}/{x}/{y}.png'), isTrue);
       expect(ServerConfig.isValidTileTemplate('https://tiles.example.com/a.png'), isFalse);
     });
   });

@@ -3,7 +3,7 @@
 # source, so the attack surface is the binary plus CA certificates.
 
 # ---------------------------------------------------------------- build
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 
 WORKDIR /src
 

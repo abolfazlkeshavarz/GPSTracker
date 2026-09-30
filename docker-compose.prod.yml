@@ -62,6 +62,9 @@ services:
       MQTT_PASSWORD: ${MQTT_PASSWORD}
 
   backend:
+    # Explicit tag, matching `make images` / build-images.sh: lets `up -d`
+    # (no --build) reuse an image loaded from a tarball instead of building.
+    image: gpstracker-backend:${VERSION:-latest}
     build:
       context: ./tracking-backend
       args:
@@ -127,6 +130,7 @@ services:
       start_period: 30s
 
   frontend:
+    image: gpstracker-frontend:${VERSION:-latest}
     build:
       context: ./tracking-frontend
       args:
@@ -137,7 +141,12 @@ services:
       - backend
       - tileserver
     ports:
-      - "${HTTP_PORT:-80}:80"
+      # Loopback only. TLS and the public port are the host nginx's job (see
+      # scripts/deploy-host-nginx.sh) so this server can sit behind it next
+      # to other projects, all sharing port 443. Publishing this on every
+      # interface would let anyone reach the app over plain HTTP, bypassing
+      # nginx and TLS entirely.
+      - "127.0.0.1:${HTTP_PORT:-8081}:80"
 
 volumes:
   postgres-data:

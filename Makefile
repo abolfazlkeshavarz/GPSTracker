@@ -410,9 +410,30 @@ deploy-health: ## Check a deployed instance (HOST=https://your.domain)
 	@API_URL="$(HOST)" REMOTE=1 $(SHELL) scripts/health.sh
 
 # --------------------------------------------------------- containerised prod
-PROD_COMPOSE = $(COMPOSE) -f docker-compose.prod.yml --env-file .env.prod
+#
+# The `export DB_PASSWORD REDIS_PASSWORD ...` block above is for the DEV
+# stack, and exports those names into every recipe's environment even when
+# unset — as empty strings. docker compose treats an already-set (even
+# empty) shell variable as taking precedence over the same name in
+# --env-file, so an empty exported REDIS_PASSWORD silently overrode the real
+# password in .env.prod and every prod-* target failed with "required
+# variable ... is missing a value" even though .env.prod had it set
+# correctly. `env -u` strips exactly the names that collide with
+# docker-compose.prod.yml's variables, so .env.prod is the only source of
+# them here, without disturbing the rest of the environment (PATH, Docker's
+# own context/auth vars, etc — an `env -i` clean-slate approach broke the
+# docker CLI wrapper on Windows).
+PROD_COMPOSE = env \
+	-u DB_USER -u DB_PASSWORD -u DB_NAME -u DB_SSLMODE \
+	-u REDIS_PASSWORD \
+	-u MQTT_USER -u MQTT_PASSWORD -u MQTT_TOPIC -u MQTT_PORT \
+	-u JWT_SECRET -u JWT_EXPIRY_HOURS -u CERT_SIGNING_KEY \
+	-u VAPID_PUBLIC_KEY -u VAPID_PRIVATE_KEY -u VAPID_SUBJECT \
+	-u APP_DOMAIN -u ALLOWED_ORIGINS \
+	$(DOCKER) compose -f docker-compose.prod.yml --env-file .env.prod
 
-.PHONY: prod-build prod-up prod-down prod-logs prod-ps prod-shell mqtt-passwd images
+.PHONY: prod-build prod-up prod-down prod-logs prod-ps prod-shell mqtt-passwd images \
+        bootstrap ssl up-prebuilt images-bundle load-images prepare-maps
 
 images: ## Build both production images without starting anything
 	$(DOCKER) build -t gpstracker-backend:$(or $(VERSION),latest) ./tracking-backend
@@ -428,7 +449,14 @@ mqtt-passwd: ## Create the production broker password file. MQTT_USER= MQTT_PASS
 	@$(DOCKER) run --rm --entrypoint sh eclipse-mosquitto:2 -c \
 		'mosquitto_passwd -b -c /tmp/p "$(MQTT_USER)" "$(MQTT_PASSWORD)" >/dev/null && cat /tmp/p' \
 		> deploy/mosquitto/passwd
-	@chmod 600 deploy/mosquitto/passwd 2>/dev/null || true
+	@# 644, not 600: this is bind-mounted (not a named volume), so host
+	@# permissions apply directly inside the container, where mosquitto
+	@# drops to its own non-root "mosquitto" user. 600 owned by whoever ran
+	@# this (root, on a server) left that user unable to read its own
+	@# password file at all -- "Unable to open pwfile" -- and the broker
+	@# refused every connection. The file holds only PBKDF2 hashes, not
+	@# plaintext, so world-readable is an acceptable tradeoff here.
+	@chmod 644 deploy/mosquitto/passwd 2>/dev/null || true
 	@echo "Wrote deploy/mosquitto/passwd for user '$(MQTT_USER)'"
 
 prod-build: ## Build the production stack images
@@ -453,3 +481,31 @@ prod-ps: ## Production container status
 
 prod-shell: ## Run the admin CLI inside the running backend container
 	$(PROD_COMPOSE) exec backend /app/cli $(or $(CMD),list-users)
+
+up-prebuilt: ## Start the stack from already-built/loaded images, without building
+	@test -f .env.prod || { echo "Create .env.prod first: cp .env.prod.example .env.prod"; exit 1; }
+	@test -f deploy/mosquitto/passwd || { echo "Create the broker password file first: make mqtt-passwd MQTT_USER=... MQTT_PASSWORD=..."; exit 1; }
+	$(PROD_COMPOSE) up -d
+	@echo ""
+	@echo "Stack starting. Check it with: make prod-ps && make deploy-health HOST=http://localhost"
+
+# ------------------------------------------------------------ easy deploy
+bootstrap: ## One-shot setup on a fresh Ubuntu/Debian VPS: Docker, maps, .env.prod, TLS. DOMAIN= LETSENCRYPT_EMAIL=
+	@bash scripts/bootstrap-vps.sh
+
+ssl: ## Configure host nginx + Let's Encrypt in front of the frontend container
+	@bash scripts/deploy-host-nginx.sh
+
+images-bundle: ## Build backend+frontend images on this machine and pack them for a low-resource VPS
+	@bash scripts/build-images.sh
+
+load-images: ## Load an images-bundle tarball built elsewhere (run this ON the server)
+	@bash scripts/load-images.sh $(FILE)
+
+prepare-maps: ## Get map tiles into MAPS_DIR — seeds config/styles/fonts from this repo, waits for you to scp the .mbtiles
+	@# $(origin MAPS_DIR) guards against .env.docker's dev-machine MAPS_DIR
+	@# (a Windows path) leaking in here on every other machine: it's only
+	@# forwarded when set right on this command line, e.g.
+	@# `make prepare-maps MAPS_DIR=/custom`. Otherwise the script resolves
+	@# its own default (.env.prod, else /root/maps).
+	@bash scripts/prepare-maps.sh $(if $(filter command line,$(origin MAPS_DIR)),$(MAPS_DIR))

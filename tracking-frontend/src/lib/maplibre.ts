@@ -42,6 +42,7 @@ export function mapStyleUrl(): string {
   return (
     import.meta.env.VITE_MAP_STYLE_URL ||
     cfg.map_style_url ||
-    "https://maps.abolfazl.fun/styles/osm-bright/style.json"
+    // The tileserver-gl container, served by nginx on this same domain.
+    "/tiles/styles/osm-bright/style.json"
   );
 }

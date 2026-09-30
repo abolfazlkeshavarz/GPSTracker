@@ -8,8 +8,13 @@ class ServerConfig {
     'DEFAULT_SERVER',
     defaultValue: 'https://abolfazl.fun',
   );
-  /// Used only when neither the user nor the server names a tile source,
-  /// and as the fallback when the configured server fails to return a tile.
+  /// The tileserver-gl container that ships with the backend stack, exposed
+  /// by nginx on the platform's own domain. Relative: resolved against the
+  /// server address, so it follows the app when the server changes.
+  static const platformTiles = '/tiles/styles/osm-bright/{z}/{x}/{y}.png';
+
+  /// Per-tile fallback when the platform map server has no tile (e.g. outside
+  /// the region its .mbtiles covers) or is unreachable.
   static const fallbackTiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
   /// Pre-2.0 builds stored the OpenStreetMap template as an explicit choice;
@@ -77,8 +82,18 @@ class ServerConfig {
     return s.replaceAll(RegExp(r'/+$'), '');
   }
 
+  /// Turns a platform-relative tile path (/tiles/...) into a full URL on the
+  /// connected server; absolute templates are returned unchanged.
+  String resolveTiles(String template) {
+    if (!template.startsWith('/') || template.startsWith('//')) return template;
+    return '${serverUrl.replaceAll(RegExp(r'/+$'), '')}$template';
+  }
+
   static bool isValidTileTemplate(String raw) {
     if (raw.trim().isEmpty) return true; // empty = follow the server
+    if (raw.startsWith('/') && !raw.startsWith('//')) {
+      return raw.contains('{z}') && raw.contains('{x}') && raw.contains('{y}');
+    }
     final u = Uri.tryParse(raw.trim().replaceAll(RegExp(r'[{}]'), ''));
     return u != null &&
         (u.scheme == 'https' || (!kReleaseMode && u.scheme == 'http')) &&

@@ -57,13 +57,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String? serverTileUrl;
   String? serverAttribution;
 
-  /// What the map actually loads: the user's override, else the admin's map
-  /// server, else OpenStreetMap.
-  String get tileUrl => config.tileUrl.isNotEmpty
-      ? config.tileUrl
-      : (serverTileUrl?.isNotEmpty ?? false)
-          ? serverTileUrl!
-          : ServerConfig.fallbackTiles;
+  /// What the map actually loads: the user's override, else the map server
+  /// the platform publishes. That is normally the tileserver running on the
+  /// same VPS behind nginx at /tiles/, published as a relative path, so it is
+  /// resolved against whatever server this app is connected to.
+  String get tileUrl {
+    if (config.tileUrl.isNotEmpty) return config.tileUrl;
+    return config.resolveTiles(
+        (serverTileUrl?.isNotEmpty ?? false) ? serverTileUrl! : ServerConfig.platformTiles);
+  }
 
   String get mapAttribution => serverAttribution?.isNotEmpty ?? false
       ? serverAttribution!

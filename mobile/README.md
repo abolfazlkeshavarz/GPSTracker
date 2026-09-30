@@ -23,7 +23,7 @@ be switched in Settings.
 | **Vehicle settings** | Rename, set odometer, speed-limit alert, reporting interval, silent mode, per-alert toggles. |
 | **Security** | Token in the Keychain / Android Keystore (never in plain preferences), optional biometric app lock, HTTPS-only servers in release builds, token sent to the WebSocket in a header rather than the URL, no Android backup of app data. |
 | **Server** | Settings → Server connection: change the platform address, with a live connection test. Changing the host signs out, because a token from one server is meaningless to another. |
-| **Your map server** | Maps come from the platform's own tile server (tileserver-gl), which an admin sets in the web Admin panel → Platform. A user can still override it in Settings; OpenStreetMap is used only as a fallback for missing tiles. |
+| **Your map server** | Maps come from the tileserver-gl container on your own VPS (served at `/tiles/` on the platform's domain). An admin can point clients elsewhere in the web Admin panel → Platform. A user can still override it in Settings; OpenStreetMap is used only as a fallback for missing tiles. |
 
 ### Works with any tracker hardware
 

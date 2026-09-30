@@ -89,6 +89,13 @@ void main() {
       expect(c.api('/devices').toString(), 'https://example.com/tracker/api/devices');
       expect(c.websocket.toString(), 'wss://example.com/tracker/api/ws');
     });
+    test('platform tile path resolves against the connected server', () {
+      const c = ServerConfig(serverUrl: 'https://tracker.example.com/', tileUrl: '');
+      expect(c.resolveTiles(ServerConfig.platformTiles),
+          'https://tracker.example.com/tiles/styles/osm-bright/{z}/{x}/{y}.png');
+      expect(c.resolveTiles('https://other.example.com/{z}/{x}/{y}.png'),
+          'https://other.example.com/{z}/{x}/{y}.png');
+    });
     test('tile template must contain placeholders', () {
       expect(ServerConfig.isValidTileTemplate(ServerConfig.fallbackTiles), isTrue);
       expect(ServerConfig.isValidTileTemplate(''), isTrue); // follow the server

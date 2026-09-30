@@ -38,11 +38,14 @@ var appConfigKeys = map[string]func(string) bool{
 
 // appConfigDefaults are used for any key not stored in the database. They
 // come from the environment so a deployment can set them without the admin
-// panel, and fall back to the project's own tile server.
+// panel, and otherwise point at the tileserver-gl container that ships with
+// this stack: nginx serves it on the platform's own domain under /tiles/
+// (see tracking-frontend/nginx.conf and docker-compose.prod.yml). Paths are
+// relative to the platform, so the same values work on any domain.
 func appConfigDefaults() map[string]string {
 	return map[string]string{
-		"map_style_url":   envOr("MAP_STYLE_URL", "https://maps.abolfazl.fun/styles/osm-bright/style.json"),
-		"map_tile_url":    envOr("MAP_TILE_URL", "https://maps.abolfazl.fun/styles/osm-bright/{z}/{x}/{y}.png"),
+		"map_style_url":   envOr("MAP_STYLE_URL", "/tiles/styles/osm-bright/style.json"),
+		"map_tile_url":    envOr("MAP_TILE_URL", "/tiles/styles/osm-bright/{z}/{x}/{y}.png"),
 		"map_attribution": envOr("MAP_ATTRIBUTION", "© OpenStreetMap contributors"),
 	}
 }
@@ -54,8 +57,15 @@ func envOr(key, def string) string {
 	return def
 }
 
+// validHTTPURL accepts an absolute http(s) URL, or a path on the platform's
+// own domain such as /tiles/... ("//host" is rejected: that is another host).
 func validHTTPURL(v string) bool {
-	u, err := url.Parse(strings.TrimSpace(v))
+	v = strings.TrimSpace(v)
+	if strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "//") {
+		_, err := url.ParseRequestURI(v)
+		return err == nil
+	}
+	u, err := url.Parse(v)
 	if err != nil || u.Host == "" || u.User != nil {
 		return false
 	}

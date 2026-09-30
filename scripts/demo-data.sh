@@ -35,6 +35,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# This runs `go run ./cmd/mqttsim` further down — needs a Go toolchain,
+# which the deploy scripts deliberately never install on the server (it
+# doesn't need one). Run this from your own machine, not over SSH on the VPS.
+command -v go >/dev/null 2>&1 || {
+  echo "Error: 'go' not found on PATH." >&2
+  echo "This script needs a Go toolchain (for cmd/mqttsim) and only talks to" >&2
+  echo "the server over its public API/MQTT ports — run it from your own" >&2
+  echo "machine, not the server." >&2
+  exit 1
+}
+
 : "${API_URL:?API_URL is required, e.g. https://gps.abolfazl.fun}"
 : "${MQTT_BROKER:?MQTT_BROKER is required, e.g. tcp://gps.abolfazl.fun:1883}"
 : "${MQTT_USER:?MQTT_USER is required — from .env.prod on the server}"

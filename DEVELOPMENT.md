@@ -677,32 +677,94 @@ The old firmware remains compatible — the new fields are simply absent.
 The whole application runs as containers — `docker-compose.prod.yml` builds and
 wires all six services.
 
+### Easy path: one command on a fresh VPS
+
+```bash
+git clone <repo-url> gpstracker && cd gpstracker
+DOMAIN=track.example.com LETSENCRYPT_EMAIL=admin@example.com ./scripts/bootstrap-vps.sh
+```
+
+This installs Docker, downloads the map tiles, generates `.env.prod` (random
+DB/Redis/MQTT passwords, a JWT secret, and the cert-signing + VAPID key pairs —
+all via the built backend image's CLI, no manual keygen steps), builds the
+images, brings the stack up, and configures the host's nginx + a Let's Encrypt
+certificate in front of it (`scripts/deploy-host-nginx.sh`, `make ssl`). It is
+safe to run alongside other projects on the same VPS: it only ever touches
+files named for this project or this domain, auto-picks a free loopback port
+if `8081` is taken, and shares the host's single nginx + certbot rather than
+trying to own port 443 itself.
+
+Options, all via environment variables:
+
+```bash
+# Skip prompts entirely
+DOMAIN=... LETSENCRYPT_EMAIL=... ./scripts/bootstrap-vps.sh
+
+# Not the first project on this VPS — pick a specific loopback port
+APP_HTTP_PORT=8082 DOMAIN=... LETSENCRYPT_EMAIL=... ./scripts/bootstrap-vps.sh
+
+# Skip the multi-GB map tile download (bring your own MAPS_DIR)
+SKIP_MAPS=1 DOMAIN=... LETSENCRYPT_EMAIL=... ./scripts/bootstrap-vps.sh
+
+# Match MQTT credentials already flashed into deployed trackers' firmware
+MQTT_USER=tracker MQTT_PASSWORD=<existing> DOMAIN=... LETSENCRYPT_EMAIL=... ./scripts/bootstrap-vps.sh
+```
+
+Re-running `bootstrap-vps.sh` is safe: it leaves an existing `.env.prod`,
+mosquitto password file, or certificate alone rather than regenerating them.
+
+### Building locally, deploying to a small VPS
+
+The frontend's Vite/TypeScript build (plus PWA service-worker bundling) and
+the Go build both want real CPU and RAM. On a 1-core/1GB VPS, building in
+place is slow at best and gets OOM-killed at worst. Build on a bigger machine
+instead and ship the result:
+
+```bash
+# On your own machine
+./scripts/build-images.sh                       # -> dist/gpstracker-images.tar.gz
+scp dist/gpstracker-images.tar.gz user@server:/opt/gpstracker/
+
+# On the server
+cd /opt/gpstracker && ./scripts/load-images.sh
+./scripts/bootstrap-vps.sh                       # detects the loaded images, skips the build
+```
+
+Cross-compiling for an arm64 VPS: `PLATFORM=linux/arm64 ./scripts/build-images.sh`.
+
+### Manual path
+
 ```bash
 cp .env.prod.example .env.prod          # then edit every CHANGE_ME
 make mqtt-passwd MQTT_USER=tracker MQTT_PASSWORD=<strong-password>
-make prod-up
-make deploy-health HOST=http://localhost
+make prod-up            # or: make up-prebuilt, if images were loaded from a tarball
+make ssl                # host nginx + Let's Encrypt (needs APP_DOMAIN/LETSENCRYPT_EMAIL in .env.prod)
+make deploy-health HOST=https://your-domain
 ```
 
 | Service | Image | Exposed |
 |---|---|---|
-| frontend | built from `tracking-frontend/Dockerfile` (nginx) | **:80** |
+| frontend | built from `tracking-frontend/Dockerfile` (nginx) | **127.0.0.1:8081** (proxied by host nginx) |
 | backend | built from `tracking-backend/Dockerfile` (~64 MB) | internal only |
 | postgres | `postgres:16-alpine` | internal only |
 | redis | `redis:7-alpine`, password-protected | internal only |
 | mosquitto | `eclipse-mosquitto:2`, auth required | **:1883** (devices need it) |
 | tileserver | `maptiler/tileserver-gl` | internal only |
 
-Only nginx and the MQTT broker are published. Postgres and Redis are not
-reachable from outside the Docker network even if the host firewall is wrong.
+Only the frontend's loopback port and the MQTT broker are published from the
+containers. Postgres and Redis are not reachable from outside the Docker
+network even if the host firewall is wrong.
 
 Notes on the setup:
 
 - The backend image runs `go vet` and `go test` during the build, so a broken
   commit cannot produce an image.
-- Both images run as a **non-root** user (uid 10001).
-- nginx serves the SPA and proxies `/api` and `/tiles`, so everything is
-  same-origin and CORS never applies. WebSocket upgrade is configured.
+- Both images run as a **non-root** user (uid 10001), and carry explicit tags
+  (`gpstracker-backend`/`gpstracker-frontend`) so `make up-prebuilt` can reuse
+  an image loaded from a tarball instead of rebuilding it.
+- nginx *inside* the frontend container serves the SPA and proxies `/api` and
+  `/tiles`, so everything the browser talks to is same-origin and CORS never
+  applies. WebSocket upgrade is configured.
 - `APP_ENV=production` makes the backend **refuse to start** without a
   `JWT_SECRET` of at least 32 characters.
 - `VITE_*` variables are inlined at build time, so changing the map URL needs a
@@ -714,11 +776,18 @@ Run the admin CLI inside the running stack:
 make prod-shell CMD="create-admin -phone admin -password <password>"
 ```
 
-**Not yet included: TLS.** The frontend container serves plain HTTP on :80.
-Terminate TLS in front of it — a host nginx, Caddy, or Traefik with Let's
-Encrypt. Until then, bearer tokens travel in clear text. `VPS/deploy.sh`
-provisions certificates for the non-containerised deployment; that part has not
-been ported to compose.
+### TLS
+
+The frontend container itself only ever serves plain HTTP, on a
+**loopback-only** port — it was never meant to be reached directly from the
+internet. `scripts/deploy-host-nginx.sh` (`make ssl`) installs nginx and
+certbot on the *host* (not a container) and puts it in front: a temporary
+HTTP-only vhost answers the ACME challenge, then it's replaced with the real
+HTTP→HTTPS + reverse-proxy vhost from `deploy/nginx/app.conf.template`, and a
+certbot renewal hook keeps the certificate current automatically. This is the
+same pattern used to host several unrelated projects on one VPS, each on its
+own (sub)domain, all sharing port 443 — this script only ever touches files
+named for this project's domain.
 
 ## Troubleshooting
 

@@ -138,4 +138,10 @@ if (( errors > 0 )); then
 fi
 echo "${GREEN}No blockers${NC}, $warnings warning(s)"
 echo ""
-echo "Next:  scp the repo to the server, then run  sudo bash VPS/deploy.sh"
+echo "Next (containerised, recommended):"
+echo "  git clone this repo on the server, then:"
+echo "  DOMAIN=... LETSENCRYPT_EMAIL=... ./scripts/bootstrap-vps.sh"
+echo "  (or, on a low-resource VPS: ./scripts/build-images.sh locally, scp the"
+echo "  tarball across, then ./scripts/load-images.sh && ./scripts/bootstrap-vps.sh)"
+echo ""
+echo "Next (legacy, bare-metal):  scp the repo to the server, then run  sudo bash VPS/deploy.sh"

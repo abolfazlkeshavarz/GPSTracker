@@ -412,7 +412,8 @@ deploy-health: ## Check a deployed instance (HOST=https://your.domain)
 # --------------------------------------------------------- containerised prod
 PROD_COMPOSE = $(COMPOSE) -f docker-compose.prod.yml --env-file .env.prod
 
-.PHONY: prod-build prod-up prod-down prod-logs prod-ps prod-shell mqtt-passwd images
+.PHONY: prod-build prod-up prod-down prod-logs prod-ps prod-shell mqtt-passwd images \
+        bootstrap ssl up-prebuilt images-bundle load-images
 
 images: ## Build both production images without starting anything
 	$(DOCKER) build -t gpstracker-backend:$(or $(VERSION),latest) ./tracking-backend
@@ -453,3 +454,23 @@ prod-ps: ## Production container status
 
 prod-shell: ## Run the admin CLI inside the running backend container
 	$(PROD_COMPOSE) exec backend /app/cli $(or $(CMD),list-users)
+
+up-prebuilt: ## Start the stack from already-built/loaded images, without building
+	@test -f .env.prod || { echo "Create .env.prod first: cp .env.prod.example .env.prod"; exit 1; }
+	@test -f deploy/mosquitto/passwd || { echo "Create the broker password file first: make mqtt-passwd MQTT_USER=... MQTT_PASSWORD=..."; exit 1; }
+	$(PROD_COMPOSE) up -d
+	@echo ""
+	@echo "Stack starting. Check it with: make prod-ps && make deploy-health HOST=http://localhost"
+
+# ------------------------------------------------------------ easy deploy
+bootstrap: ## One-shot setup on a fresh Ubuntu/Debian VPS: Docker, maps, .env.prod, TLS. DOMAIN= LETSENCRYPT_EMAIL=
+	@bash scripts/bootstrap-vps.sh
+
+ssl: ## Configure host nginx + Let's Encrypt in front of the frontend container
+	@bash scripts/deploy-host-nginx.sh
+
+images-bundle: ## Build backend+frontend images on this machine and pack them for a low-resource VPS
+	@bash scripts/build-images.sh
+
+load-images: ## Load an images-bundle tarball built elsewhere (run this ON the server)
+	@bash scripts/load-images.sh $(FILE)

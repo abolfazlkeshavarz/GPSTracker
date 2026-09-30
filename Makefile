@@ -449,7 +449,14 @@ mqtt-passwd: ## Create the production broker password file. MQTT_USER= MQTT_PASS
 	@$(DOCKER) run --rm --entrypoint sh eclipse-mosquitto:2 -c \
 		'mosquitto_passwd -b -c /tmp/p "$(MQTT_USER)" "$(MQTT_PASSWORD)" >/dev/null && cat /tmp/p' \
 		> deploy/mosquitto/passwd
-	@chmod 600 deploy/mosquitto/passwd 2>/dev/null || true
+	@# 644, not 600: this is bind-mounted (not a named volume), so host
+	@# permissions apply directly inside the container, where mosquitto
+	@# drops to its own non-root "mosquitto" user. 600 owned by whoever ran
+	@# this (root, on a server) left that user unable to read its own
+	@# password file at all -- "Unable to open pwfile" -- and the broker
+	@# refused every connection. The file holds only PBKDF2 hashes, not
+	@# plaintext, so world-readable is an acceptable tradeoff here.
+	@chmod 644 deploy/mosquitto/passwd 2>/dev/null || true
 	@echo "Wrote deploy/mosquitto/passwd for user '$(MQTT_USER)'"
 
 prod-build: ## Build the production stack images

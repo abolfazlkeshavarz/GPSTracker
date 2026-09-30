@@ -24,6 +24,8 @@ import GeofencePanel from "../components/device/GeofencePanel";
 import RemoteControl from "../components/device/RemoteControl";
 import AlertSettingsPanel from "../components/device/AlertSettingsPanel";
 import SubscriptionCard from "../components/device/SubscriptionCard";
+import HealthCard from "../components/device/HealthCard";
+import WalkToCar from "../components/device/WalkToCar";
 import { useLanguage } from "../context/LanguageContext";
 import { useDeviceUpdates } from "../context/RealtimeContext";
 import { getDevices, getLatestLocation, getOdometer, setOdometer, type Odometer } from "../api/devices";
@@ -58,7 +60,9 @@ export default function DeviceDetails() {
       setLoading(true);
       const data = await getLatestLocation(serial);
       setLocation(data);
-      setLastUpdate(new Date());
+      const fixAt = typeof data?.timestamp === "number" ? new Date(data.timestamp * 1000) : new Date();
+      setLastUpdate(fixAt);
+      setLive(Date.now() - fixAt.getTime() < 90_000);
     } catch {
       setLocation(null);
     } finally {
@@ -149,6 +153,9 @@ export default function DeviceDetails() {
   const battery = typeof location.battery === "number" ? location.battery : null;
   const gps = gpsQuality(sats, location.hdop);
   const signal = signalQuality(csq);
+  // Some boards never report cell signal; a permanent "0/31 Very poor" would
+  // be a false alarm, so the gauge only appears for hardware that sends it.
+  const hasCsq = typeof location.csq === "number" && location.csq > 0 && location.csq !== 99;
   const batt = batteryQuality(battery);
 
   return (
@@ -199,13 +206,13 @@ export default function DeviceDetails() {
           accent="series-3"
           hint={gps.label}
         />
-        <StatTile
+        {hasCsq && <StatTile
           label={t("signal.strength")}
           value={`${csq}/31`}
           icon={<Signal className="w-[18px] h-[18px]" />}
           accent="series-4"
           hint={signal.label}
-        />
+        />}
         <StatTile
           label={t("battery")}
           value={battery != null ? `${battery.toFixed(2)} V` : "—"}
@@ -235,6 +242,9 @@ export default function DeviceDetails() {
         </Card>
 
         <div className="space-y-4">
+          <HealthCard location={location} online={live} />
+          <WalkToCar lat={location.lat} lng={location.lng} />
+
           <Card flush>
             <CardHeader title={t("location.details")} />
             <dl className="p-5 space-y-3">
@@ -284,7 +294,7 @@ export default function DeviceDetails() {
                   </>
                 }
               />
-              <Meter
+              {hasCsq && <Meter
                 value={Math.min(100, (csq / 31) * 100)}
                 tone={signal.tone}
                 label={
@@ -293,7 +303,7 @@ export default function DeviceDetails() {
                     <span className="font-medium text-content-secondary">{signal.label}</span>
                   </>
                 }
-              />
+              />}
               {battery != null && (
                 <Meter
                   value={batt.pct}

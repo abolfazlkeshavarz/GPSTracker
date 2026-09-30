@@ -7,11 +7,13 @@ import api from "../api/axios";
 import UserModal from "../components/admin/UserModal";
 import UserDevicesModal from "../components/admin/UserDevicesModal";
 import DeviceModal from "../components/admin/DeviceModal";
+import PlatformSettings from "../components/admin/PlatformSettings";
+import { Link } from "react-router-dom";
 import { 
   Shield, Users, Smartphone, Eye, Search, 
   Edit, Trash2, Plus, Power, RefreshCw,
   Activity, Calendar, ChevronLeft, ChevronRight,
-  UserPlus, X
+  UserPlus, X, Settings2, SlidersHorizontal
 } from "lucide-react";
 
 export default function AdminPanel() {
@@ -319,6 +321,7 @@ export default function AdminPanel() {
                 { id: "users", label: "Users", icon: Users },
                 { id: "devices", label: "Devices", icon: Smartphone },
                 { id: "logs", label: "Audit Logs", icon: Eye },
+                { id: "platform", label: t("admin.tab.platform"), icon: Settings2 },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -585,6 +588,17 @@ export default function AdminPanel() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex gap-2">
+                                {/* Opens the full device page: settings, zones and
+                                    guard mode, odometer, remote commands, history.
+                                    Admin changes there are audit-logged server-side. */}
+                                <Link
+                                  to={`/device/${encodeURIComponent(device.serial)}`}
+                                  className="text-brand hover:text-brand-hover"
+                                  title={t("admin.manage.device")}
+                                  aria-label={t("admin.manage.device")}
+                                >
+                                  <SlidersHorizontal className="w-4 h-4" />
+                                </Link>
                                 {!device.user_id && (
                                   <button
                                     onClick={() => {
@@ -633,6 +647,8 @@ export default function AdminPanel() {
                 </table>
               </div>
             )}
+
+            {activeTab === "platform" && <PlatformSettings />}
 
             {/* Logs Tab */}
             {!loading && activeTab === "logs" && (

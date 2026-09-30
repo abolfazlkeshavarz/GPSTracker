@@ -1,4 +1,5 @@
 import maplibregl from "maplibre-gl";
+import { appConfig, isConfigured } from "./appConfig";
 
 /**
  * One-time MapLibre setup, shared by every map component.
@@ -31,9 +32,16 @@ export function ensureMapLibreReady(): void {
 /**
  * Style URL for every map.
  *
- * Was hardcoded to the production tile server, so local development could not
- * render a map without reaching that host.
+ * Precedence: a map server an admin set in the admin panel, then the
+ * build-time VITE_MAP_STYLE_URL (e.g. a developer's local tileserver), then
+ * the server's default. Read at map creation, after loadAppConfig() ran.
  */
-export const MAP_STYLE_URL: string =
-  import.meta.env.VITE_MAP_STYLE_URL ||
-  "https://maps.abolfazl.fun/styles/osm-bright/style.json";
+export function mapStyleUrl(): string {
+  const cfg = appConfig();
+  if (isConfigured("map_style_url") && cfg.map_style_url) return cfg.map_style_url;
+  return (
+    import.meta.env.VITE_MAP_STYLE_URL ||
+    cfg.map_style_url ||
+    "https://maps.abolfazl.fun/styles/osm-bright/style.json"
+  );
+}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Crosshair, MapPinned, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { Crosshair, MapPinned, Pause, Play, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 
 import {
   createGeofence,
@@ -22,6 +23,9 @@ lives in internal/mqtt/geofence.go: crossing detection there compares against
 the last known state, not every point inside the zone, so this panel's job is
 just CRUD plus a clear read of what is currently defined.
 */
+
+const GUARD_NAME = "Guard mode";
+const GUARD_RADIUS_M = 150;
 
 interface Props {
   serial: string;
@@ -58,6 +62,39 @@ export default function GeofencePanel({ serial, currentLat, currentLng }: Props)
     }
   };
 
+  // Guard mode: a tight "exit" zone around where the vehicle is parked now,
+  // so any movement — towing included — raises an alert. Same name as the
+  // mobile app uses, so both clients recognise the same zone.
+  const guard = fences.find((f) => f.name === GUARD_NAME);
+  const [guardBusy, setGuardBusy] = useState(false);
+
+  const toggleGuard = async () => {
+    setGuardBusy(true);
+    try {
+      if (guard) {
+        await deleteGeofence(serial, guard.id);
+        setFences((prev) => prev.filter((f) => f.id !== guard.id));
+      } else {
+        if (typeof currentLat !== "number" || typeof currentLng !== "number") {
+          toast.error(t("guard.needs.fix"));
+          return;
+        }
+        const fence = await createGeofence(serial, {
+          name: GUARD_NAME,
+          lat: currentLat,
+          lng: currentLng,
+          radius_m: GUARD_RADIUS_M,
+          trigger_on: "exit",
+        });
+        setFences((prev) => [fence, ...prev]);
+      }
+    } catch {
+      toast.error(t("guard.failed"));
+    } finally {
+      setGuardBusy(false);
+    }
+  };
+
   const handleDelete = async (fence: Geofence) => {
     setFences((prev) => prev.filter((f) => f.id !== fence.id));
     try {
@@ -82,6 +119,37 @@ export default function GeofencePanel({ serial, currentLat, currentLng }: Props)
       />
 
       <div className="p-5 space-y-3">
+        <div
+          className={cx(
+            "flex items-center gap-3 p-3 rounded-control border",
+            guard ? "border-status-good/40 bg-status-good/5" : "border-line"
+          )}
+        >
+          <span
+            className={cx(
+              "shrink-0 grid place-items-center w-9 h-9 rounded-control",
+              guard ? "bg-status-good/15 text-status-good" : "bg-brand-subtle text-brand-ink"
+            )}
+          >
+            <ShieldCheck className="w-4 h-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-content">{t("guard.title")}</p>
+            <p className="text-xs text-content-muted">
+              {guard ? t("guard.armed").replace("{m}", String(guard.radius_m)) : t("guard.desc")}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant={guard ? "secondary" : "primary"}
+            loading={guardBusy}
+            onClick={toggleGuard}
+            aria-pressed={!!guard}
+          >
+            {guard ? t("guard.disarm") : t("guard.arm")}
+          </Button>
+        </div>
+
         {showForm && (
           <CreateForm
             serial={serial}
@@ -101,14 +169,14 @@ export default function GeofencePanel({ serial, currentLat, currentLng }: Props)
             <Skeleton className="h-14 w-full" />
             <Skeleton className="h-14 w-full" />
           </>
-        ) : fences.length === 0 && !showForm ? (
+        ) : fences.filter((f) => f.name !== GUARD_NAME).length === 0 && !showForm ? (
           <EmptyState
             icon={<MapPinned className="w-6 h-6" />}
             title={t("no.geofences.yet")}
             description={t("no.geofences.description")}
           />
         ) : (
-          fences.map((fence) => (
+          fences.filter((f) => f.name !== GUARD_NAME).map((fence) => (
             <FenceRow key={fence.id} fence={fence} t={t} onToggle={handleToggle} onDelete={handleDelete} />
           ))
         )}

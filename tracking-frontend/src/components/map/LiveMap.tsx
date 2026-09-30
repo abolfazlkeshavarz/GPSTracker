@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { ensureMapLibreReady, MAP_STYLE_URL } from "../../lib/maplibre";
+import { ensureMapLibreReady, mapStyleUrl } from "../../lib/maplibre";
 
 ensureMapLibreReady();
 
@@ -26,7 +26,7 @@ export default function LiveMap({ lat, lng, serial, heading }: Props) {
 
     const map = new maplibregl.Map({
       container: container.current,
-      style: MAP_STYLE_URL,
+      style: mapStyleUrl(),
       center: [lng, lat],
       zoom: 15,
       attributionControl: false,

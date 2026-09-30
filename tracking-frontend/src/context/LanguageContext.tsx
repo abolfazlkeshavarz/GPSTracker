@@ -1,7 +1,8 @@
 // src/context/LanguageContext.tsx
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import it from '../i18n/it';
 
-type Language = 'en' | 'fa';
+import type { Language } from '../i18n/languages';
 
 interface LanguageContextType {
   language: Language;
@@ -393,6 +394,44 @@ const translations = {
     'paused': 'Paused',
     'pause': 'Pause',
     'resume': 'Resume',
+    // Admin: platform settings
+    'admin.tab.platform': 'Platform',
+    'admin.manage.device': 'Manage device (settings, zones, commands)',
+    'admin.config.map.title': 'Map server',
+    'admin.config.map.hint': 'Used by the web dashboard and the mobile apps. Changes apply the next time each app starts.',
+    'admin.config.style': 'Web map style (style.json)',
+    'admin.config.style.hint': 'MapLibre style URL, e.g. https://maps.example.com/styles/osm-bright/style.json',
+    'admin.config.tiles': 'Mobile tile URL',
+    'admin.config.tiles.hint': 'Raster template with {z}, {x}, {y}, e.g. https://maps.example.com/styles/osm-bright/{z}/{x}/{y}.png',
+    'admin.config.attribution': 'Map attribution',
+    'admin.config.reset': 'Reset to defaults',
+    'admin.config.custom': 'Custom',
+    'admin.config.default': 'Default',
+    'admin.config.saved': 'Platform settings saved',
+    'admin.config.save.failed': 'Could not save platform settings',
+    'admin.config.load.failed': 'Could not load platform settings',
+
+    // Guard mode
+    'guard.title': 'Guard mode',
+    'guard.desc': 'Alert me the moment the vehicle leaves where it is parked now',
+    'guard.armed': 'Armed — watching a {m} m circle',
+    'guard.arm': 'Arm',
+    'guard.disarm': 'Disarm',
+    'guard.needs.fix': 'Needs a current position',
+    'guard.failed': 'Could not change guard mode',
+
+    // Health
+    'health.title': 'Tracker health',
+
+    // Replay
+    'replay.play': 'Replay route',
+    'replay.pause': 'Pause',
+
+    // Walk to car
+    'walk.title': 'Walk to my car',
+    'walk.away': '{d} away',
+    'walk.denied': 'Allow location access to guide you to the vehicle',
+    'walk.locating': 'Finding your location...',
     'meters': 'm',
   },
   fa: {
@@ -777,6 +816,44 @@ const translations = {
     'paused': 'متوقف‌شده',
     'pause': 'توقف',
     'resume': 'ازسرگیری',
+    // Admin: platform settings
+    'admin.tab.platform': 'پلتفرم',
+    'admin.manage.device': 'مدیریت دستگاه (تنظیمات، محدوده\u200cها، فرمان\u200cها)',
+    'admin.config.map.title': 'سرور نقشه',
+    'admin.config.map.hint': 'در داشبورد وب و اپلیکیشن موبایل استفاده می\u200cشود. تغییرات از اجرای بعدی هر برنامه اعمال می\u200cشود.',
+    'admin.config.style': 'استایل نقشه وب (style.json)',
+    'admin.config.style.hint': 'آدرس استایل MapLibre، مثلاً https://maps.example.com/styles/osm-bright/style.json',
+    'admin.config.tiles': 'آدرس کاشی موبایل',
+    'admin.config.tiles.hint': 'الگوی رستری با {z}، {x}، {y}، مثلاً https://maps.example.com/styles/osm-bright/{z}/{x}/{y}.png',
+    'admin.config.attribution': 'منبع نقشه',
+    'admin.config.reset': 'بازگردانی پیش\u200cفرض',
+    'admin.config.custom': 'سفارشی',
+    'admin.config.default': 'پیش\u200cفرض',
+    'admin.config.saved': 'تنظیمات پلتفرم ذخیره شد',
+    'admin.config.save.failed': 'ذخیره تنظیمات پلتفرم ممکن نشد',
+    'admin.config.load.failed': 'بارگذاری تنظیمات پلتفرم ممکن نشد',
+
+    // Guard mode
+    'guard.title': 'حالت نگهبان',
+    'guard.desc': 'به محض خروج خودرو از محل پارک فعلی به من هشدار بده',
+    'guard.armed': 'فعال — مراقبت از دایره {m} متری',
+    'guard.arm': 'فعال‌سازی',
+    'guard.disarm': 'غیرفعال',
+    'guard.needs.fix': 'موقعیت فعلی لازم است',
+    'guard.failed': 'تغییر حالت نگهبان ممکن نشد',
+
+    // Health
+    'health.title': 'سلامت ردیاب',
+
+    // Replay
+    'replay.play': 'بازپخش مسیر',
+    'replay.pause': 'توقف',
+
+    // Walk to car
+    'walk.title': 'مسیر پیاده تا خودرو',
+    'walk.away': '{d} فاصله',
+    'walk.denied': 'برای راهنمایی تا خودرو، دسترسی به موقعیت را مجاز کنید',
+    'walk.locating': 'در حال یافتن موقعیت شما...',
     'meters': 'متر',
   }
 };
@@ -786,7 +863,7 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem('language');
-    return (saved === 'fa' ? 'fa' : 'en') as Language;
+    return (saved === 'fa' || saved === 'it' ? saved : 'en') as Language;
   });
 
   useEffect(() => {
@@ -805,7 +882,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [language]);
 
   const t = (key: string): string => {
-    return translations[language][key as keyof typeof translations.en] || key;
+    const k = key as keyof typeof translations.en;
+    // Italian lives in its own module; any key it lacks falls back to English.
+    const table: Record<string, string> = language === 'it' ? it : translations[language];
+    return table[k] || translations.en[k] || key;
   };
 
   const isRTL = language === 'fa';

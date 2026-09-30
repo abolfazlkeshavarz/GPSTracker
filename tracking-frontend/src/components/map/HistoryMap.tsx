@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Pause, Play } from "lucide-react";
+import { useLanguage } from "../../context/LanguageContext";
 import maplibregl from "maplibre-gl";
 import type { TrackPoint, TrackStop } from "../../api/devices";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { ensureMapLibreReady, MAP_STYLE_URL } from "../../lib/maplibre";
+import { ensureMapLibreReady, mapStyleUrl } from "../../lib/maplibre";
 
 ensureMapLibreReady();
 
@@ -52,7 +54,7 @@ export default function HistoryMap({
 
     const map = new maplibregl.Map({
       container: container.current,
-      style: MAP_STYLE_URL,
+      style: mapStyleUrl(),
       center: [51.389, 35.6892],
       zoom: 11,
       attributionControl: false,
@@ -269,7 +271,95 @@ export default function HistoryMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedStopIndex]);
 
-  return <div ref={container} style={{ width: "100%", height: "100%" }} />;
+  // ---------------------------------------------------------------- replay
+  // Drives a marker along the route so a journey can be watched back, the
+  // same way the mobile app's replay scrubber works.
+  const { t } = useLanguage();
+  const [cursor, setCursor] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const replayMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const [trackKey, setTrackKey] = useState(points);
+  if (trackKey !== points) {
+    // A new track resets the replay (adjusting state during render, not in
+    // an effect, so there is no flash of a stale cursor).
+    setTrackKey(points);
+    setCursor(0);
+    setPlaying(false);
+  }
+
+  useEffect(() => {
+    if (!playing) return;
+    const id = setInterval(() => {
+      setCursor((c) => {
+        if (c >= points.length - 1) {
+          setPlaying(false);
+          return c;
+        }
+        return c + 1;
+      });
+    }, 60);
+    return () => clearInterval(id);
+  }, [playing, points.length]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const p = points[cursor];
+    if (!map || !p || (!playing && cursor === 0)) {
+      replayMarkerRef.current?.remove();
+      replayMarkerRef.current = null;
+      return;
+    }
+    if (!replayMarkerRef.current) {
+      const el = document.createElement("div");
+      el.style.cssText =
+        "width:18px;height:18px;border-radius:9999px;background:#10b981;border:3px solid #fff;box-shadow:0 0 12px rgba(16,185,129,.8)";
+      replayMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map);
+    } else {
+      replayMarkerRef.current.setLngLat([p.lng, p.lat]);
+    }
+    if (playing) map.easeTo({ center: [p.lng, p.lat], duration: 60 });
+  }, [cursor, playing, points]);
+
+  const cur = points[cursor];
+
+  return (
+    <div className="relative w-full h-full">
+      <div ref={container} style={{ width: "100%", height: "100%" }} />
+      {points.length > 1 && (
+        <div className="absolute inset-x-3 bottom-3 flex items-center gap-3 px-3 py-2 rounded-card bg-surface/90 backdrop-blur border border-line shadow-sm">
+          <button
+            type="button"
+            onClick={() => {
+              if (!playing && cursor >= points.length - 1) setCursor(0);
+              setPlaying((v) => !v);
+            }}
+            aria-label={playing ? t("replay.pause") : t("replay.play")}
+            title={playing ? t("replay.pause") : t("replay.play")}
+            className="grid place-items-center w-9 h-9 rounded-full bg-brand text-white shrink-0 cursor-pointer"
+          >
+            {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={points.length - 1}
+            value={cursor}
+            onChange={(e) => {
+              setPlaying(false);
+              setCursor(Number(e.target.value));
+            }}
+            aria-label={t("replay.play")}
+            className="flex-1 accent-[rgb(var(--brand))]"
+          />
+          {cur && (cursor > 0 || playing) && (
+            <span className="text-xs text-content-secondary tnum whitespace-nowrap">
+              {new Date(cur.recorded_at).toLocaleTimeString()} · {cur.speed} {t("unit.kmh")}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ------------------------------------------------------------------ helpers

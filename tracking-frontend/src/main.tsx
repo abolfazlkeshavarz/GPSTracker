@@ -9,7 +9,10 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { RealtimeProvider } from "./context/RealtimeContext";
 import PWAHost from "./components/pwa/PWAHost";
 import "./index.css";
+import { loadAppConfig } from "./lib/appConfig";
 
+// Map server settings first, so the first map already uses the right one.
+loadAppConfig().finally(() =>
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider>
@@ -48,4 +51,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       </BrowserRouter>
     </ThemeProvider>
   </React.StrictMode>
+  )
 );

@@ -496,4 +496,9 @@ load-images: ## Load an images-bundle tarball built elsewhere (run this ON the s
 	@bash scripts/load-images.sh $(FILE)
 
 prepare-maps: ## Get map tiles into MAPS_DIR — seeds config/styles/fonts from this repo, waits for you to scp the .mbtiles
-	@bash scripts/prepare-maps.sh $(MAPS_DIR)
+	@# $(origin MAPS_DIR) guards against .env.docker's dev-machine MAPS_DIR
+	@# (a Windows path) leaking in here on every other machine: it's only
+	@# forwarded when set right on this command line, e.g.
+	@# `make prepare-maps MAPS_DIR=/custom`. Otherwise the script resolves
+	@# its own default (.env.prod, else /root/maps).
+	@bash scripts/prepare-maps.sh $(if $(filter command line,$(origin MAPS_DIR)),$(MAPS_DIR))

@@ -65,6 +65,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
     // the client needs it before it can offer to enable notifications.
     router.GET("/api/push/vapid-key", GetVAPIDKey)
 
+    // Public: map server and other client settings, needed before sign-in.
+    router.GET("/api/app-config", GetAppConfig)
+
     // Health check
     router.GET("/health", func(c *gin.Context) {
         c.JSON(200, gin.H{"status": "ok"})
@@ -162,6 +165,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
         admin.POST("/devices/:serial/subscription", AdminRenewSubscription)
         admin.PUT("/devices/:serial/inventory", AdminUpdateInventory)
         
+        // Platform settings (map server for web and mobile).
+        admin.GET("/app-config", GetAppConfig)
+        admin.PUT("/app-config", AdminUpdateAppConfig)
+
+        // Per-device features (settings, zones and guard mode, odometer,
+        // commands, history) are reached through the ordinary
+        // /api/devices/:serial/... routes: canAccessDevice admits admins for
+        // any device and audit-logs their changes.
+
         // Audit logs
         admin.GET("/logs", AdminGetLogs)
         

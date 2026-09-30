@@ -56,10 +56,9 @@ func scanSettings(row interface{ Scan(...any) error }, s *models.DeviceSettings)
 
 // GetDeviceSettings returns the current configuration for a device.
 func GetDeviceSettings(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
@@ -91,7 +90,7 @@ func UpdateDeviceSettings(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}

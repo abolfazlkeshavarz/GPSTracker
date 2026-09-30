@@ -19,10 +19,9 @@ import (
 // yours, and "give it to me in a format I can open in a spreadsheet" should
 // never require asking support for a database dump.
 func ExportDeviceHistoryCSV(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}

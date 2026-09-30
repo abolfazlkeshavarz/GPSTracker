@@ -107,10 +107,9 @@ func loadChainRange(serial string, from, to time.Time) ([]integrity.StoredRecord
 // GetDeviceChainVerification replays the hash chain and reports whether the
 // stored history has been altered.
 func GetDeviceChainVerification(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
@@ -160,10 +159,9 @@ func GetDeviceChainVerification(c *gin.Context) {
 
 // GetDeviceCertificate issues a signed, exportable record of a journey.
 func GetDeviceCertificate(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}

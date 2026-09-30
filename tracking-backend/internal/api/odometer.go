@@ -32,10 +32,9 @@ func metersToKm(m float64) float64 {
 // A device that has never reported has no odometer row yet; that is reported
 // as a zero total rather than a 404, so the UI can always show a figure.
 func GetOdometer(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
@@ -70,10 +69,9 @@ func GetOdometer(c *gin.Context) {
 // live fix still measures its hop from the vehicle's real location, so
 // setting the reading does not make the counter jump on the following point.
 func SetOdometer(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}

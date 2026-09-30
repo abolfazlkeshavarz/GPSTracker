@@ -25,10 +25,9 @@ device, not once per user action.
 
 // ListGeofences returns every fence defined for a device.
 func ListGeofences(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
@@ -64,7 +63,7 @@ func CreateGeofence(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
@@ -124,10 +123,9 @@ func CreateGeofence(c *gin.Context) {
 // DeleteGeofence removes a fence. Ownership is checked through the device,
 // not the fence row directly, so the same access rule applies everywhere.
 func DeleteGeofence(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
@@ -155,10 +153,9 @@ func DeleteGeofence(c *gin.Context) {
 // UpdateGeofence toggles a fence active/inactive without deleting it —
 // useful for a "pause while I'm away" case without losing the definition.
 func UpdateGeofence(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}

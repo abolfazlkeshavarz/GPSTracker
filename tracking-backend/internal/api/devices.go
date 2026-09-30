@@ -17,11 +17,10 @@ import (
 )
 
 func GetLatestLocation(c *gin.Context) {
-    userID := c.GetInt("user_id")
     serial := c.Param("serial")
 
     // Verify user owns this device
-    if !deviceBelongsToUser(userID, serial) {
+    if !canAccessDevice(c, serial) {
         c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
         return
     }
@@ -62,14 +61,13 @@ func GetLatestLocation(c *gin.Context) {
 }
 
 func GetLocationHistory(c *gin.Context) {
-    userID := c.GetInt("user_id")
     serial := c.Param("serial")
 
     // Bad input used to reach Postgres verbatim and surface as a 500.
     limit := clampedIntQuery(c, "limit", 100, 1, 1000)
     hours := clampedIntQuery(c, "hours", 24, 1, 24*365)
 
-    if !deviceBelongsToUser(userID, serial) {
+    if !canAccessDevice(c, serial) {
         c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
         return
     }
@@ -120,10 +118,9 @@ const maxTrackPoints = 20000
 // `from` and `to` accept either RFC3339 or a plain YYYY-MM-DD date. Omitting
 // them falls back to the last 24 hours.
 func GetDeviceTrack(c *gin.Context) {
-    userID := c.GetInt("user_id")
     serial := c.Param("serial")
 
-    if !deviceBelongsToUser(userID, serial) {
+    if !canAccessDevice(c, serial) {
         c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
         return
     }
@@ -262,10 +259,9 @@ func parseTimeParam(raw string, fallback time.Time, endOfDay bool) (time.Time, e
 }
 
 func GetSignalQuality(c *gin.Context) {
-    userID := c.GetInt("user_id")
     serial := c.Param("serial")
 
-    if !deviceBelongsToUser(userID, serial) {
+    if !canAccessDevice(c, serial) {
         c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
         return
     }
@@ -321,10 +317,9 @@ func deviceBelongsToUser(userID int, serial string) bool {
 
 func GetDeviceStatus(c *gin.Context) {
 
-    userID := c.GetInt("user_id")
     serial := c.Param("serial")
 
-    if !deviceBelongsToUser(userID, serial) {
+    if !canAccessDevice(c, serial) {
         c.JSON(http.StatusForbidden, gin.H{
             "error": "Access denied",
         })

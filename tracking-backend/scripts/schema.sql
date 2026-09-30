@@ -362,6 +362,16 @@ CREATE TABLE IF NOT EXISTS device_odometer (
     updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Platform-wide settings an admin can change at runtime, such as which map
+-- server the web and mobile clients use. Key/value so a new setting needs no
+-- migration; values are validated in the API, not here.
+CREATE TABLE IF NOT EXISTS app_config (
+    key        VARCHAR(64) PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ------------------------------------------------------------- indexes
 CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
 CREATE INDEX IF NOT EXISTS idx_devices_serial_active ON devices(serial, is_active);

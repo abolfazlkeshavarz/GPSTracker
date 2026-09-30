@@ -23,10 +23,9 @@ warranty window is a claim the seller honours, not one the buyer sets.
 
 // GetDeviceSubscription returns plan and warranty status for one device.
 func GetDeviceSubscription(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}

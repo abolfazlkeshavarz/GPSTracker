@@ -53,7 +53,7 @@ func IssueCommand(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
@@ -111,10 +111,9 @@ func IssueCommand(c *gin.Context) {
 // ListCommands returns a device's recent command history, so an owner can see
 // what was sent, by whom, and whether the vehicle actually confirmed it.
 func ListCommands(c *gin.Context) {
-	userID := c.GetInt("user_id")
 	serial := c.Param("serial")
 
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}

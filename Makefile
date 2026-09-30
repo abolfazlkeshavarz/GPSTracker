@@ -410,7 +410,27 @@ deploy-health: ## Check a deployed instance (HOST=https://your.domain)
 	@API_URL="$(HOST)" REMOTE=1 $(SHELL) scripts/health.sh
 
 # --------------------------------------------------------- containerised prod
-PROD_COMPOSE = $(COMPOSE) -f docker-compose.prod.yml --env-file .env.prod
+#
+# The `export DB_PASSWORD REDIS_PASSWORD ...` block above is for the DEV
+# stack, and exports those names into every recipe's environment even when
+# unset — as empty strings. docker compose treats an already-set (even
+# empty) shell variable as taking precedence over the same name in
+# --env-file, so an empty exported REDIS_PASSWORD silently overrode the real
+# password in .env.prod and every prod-* target failed with "required
+# variable ... is missing a value" even though .env.prod had it set
+# correctly. `env -u` strips exactly the names that collide with
+# docker-compose.prod.yml's variables, so .env.prod is the only source of
+# them here, without disturbing the rest of the environment (PATH, Docker's
+# own context/auth vars, etc — an `env -i` clean-slate approach broke the
+# docker CLI wrapper on Windows).
+PROD_COMPOSE = env \
+	-u DB_USER -u DB_PASSWORD -u DB_NAME -u DB_SSLMODE \
+	-u REDIS_PASSWORD \
+	-u MQTT_USER -u MQTT_PASSWORD -u MQTT_TOPIC -u MQTT_PORT \
+	-u JWT_SECRET -u JWT_EXPIRY_HOURS -u CERT_SIGNING_KEY \
+	-u VAPID_PUBLIC_KEY -u VAPID_PRIVATE_KEY -u VAPID_SUBJECT \
+	-u APP_DOMAIN -u ALLOWED_ORIGINS \
+	$(DOCKER) compose -f docker-compose.prod.yml --env-file .env.prod
 
 .PHONY: prod-build prod-up prod-down prod-logs prod-ps prod-shell mqtt-passwd images \
         bootstrap ssl up-prebuilt images-bundle load-images

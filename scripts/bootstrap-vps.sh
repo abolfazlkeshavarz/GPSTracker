@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # Full zero-to-deployed setup on a brand-new Ubuntu/Debian VPS: installs
-# Docker, downloads the map tiles, creates .env.prod, brings the containerised
-# stack up, and configures this server's nginx + an SSL certificate — all in
-# one run.
+# Docker, gets map tiles into place, creates .env.prod, brings the
+# containerised stack up, and configures this server's nginx + an SSL
+# certificate — all in one run.
 #
 # This app runs fine alongside OTHER projects on the same VPS, each on its
 # own (sub)domain: only this project's Docker containers are installed by
@@ -22,9 +22,15 @@
 # (must be unique per project — default 8081):
 #   APP_HTTP_PORT=8082 DOMAIN=... LETSENCRYPT_EMAIL=... ./scripts/bootstrap-vps.sh
 #
-# To skip the multi-gigabyte map tile download (bring your own MAPS_DIR
-# later, or point MAPS_DIR at one already on this server):
+# Map tiles: this pauses partway through and waits for you to scp your own
+# tiles/style bundle over (see scripts/prepare-maps.sh — it prints the exact
+# commands, with your SSH port/user filled in if you set them):
+#   SSH_PORT=9011 SSH_USER=root DOMAIN=... LETSENCRYPT_EMAIL=... ./scripts/bootstrap-vps.sh
+# To skip that wait entirely (bring your own MAPS_DIR some other way, or one
+# is already on this server):
 #   SKIP_MAPS=1 ./scripts/bootstrap-vps.sh
+# To download the bundled Iran map data automatically instead of waiting:
+#   AUTO_DOWNLOAD_MAPS=1 ./scripts/bootstrap-vps.sh
 #
 # To point MQTT credentials at whatever is already flashed into your
 # trackers' firmware instead of generating new random ones:
@@ -156,35 +162,18 @@ fi
 
 # --------------------------------------------------------------------- maps
 MAPS_DIR="${MAPS_DIR:-/root/maps}"
-MAPS_DOWNLOAD_URL="${MAPS_DOWNLOAD_URL:-https://bucketfirst.s3.ir-thr-at1.arvanstorage.ir/iran-output.zip}"
 
 if [[ "${SKIP_MAPS:-0}" == "1" ]]; then
-  echo "==> SKIP_MAPS=1 — not downloading map tiles"
+  echo "==> SKIP_MAPS=1 — not setting up map tiles"
   echo "    Point MAPS_DIR in .env.prod at a directory containing config.json,"
   echo "    styles/, fonts/ and a .mbtiles file before starting the stack."
-elif find "$MAPS_DIR" -maxdepth 1 -name "*.mbtiles" -type f 2>/dev/null | grep -q .; then
-  echo "==> Map tiles already present in ${MAPS_DIR} — skipping download"
 else
-  echo "==> Downloading map tiles to ${MAPS_DIR}"
-  echo "    This is several GB; set SKIP_MAPS=1 to skip and provide your own."
-  mkdir -p "$MAPS_DIR"
-  MAPS_ZIP="${MAPS_DIR}/maps.zip"
-  if curl -fL --progress-bar -o "$MAPS_ZIP" "$MAPS_DOWNLOAD_URL"; then
-    unzip -o "$MAPS_ZIP" -d "$MAPS_DIR" >/dev/null
-    rm -f "$MAPS_ZIP"
-    chmod -R a+rX "$MAPS_DIR"
-    MBTILES_FILE="$(find "$MAPS_DIR" -name "*.mbtiles" -type f | head -1)"
-    if [[ -n "$MBTILES_FILE" ]]; then
-      echo "    Map file found: ${MBTILES_FILE}"
-    else
-      echo "    Warning: no .mbtiles file found in the extracted content — the"
-      echo "    tileserver container will not start cleanly until one is added."
-    fi
-  else
-    echo "    Warning: failed to download maps from ${MAPS_DOWNLOAD_URL}."
-    echo "    The stack will still come up, but the tileserver container will"
-    echo "    fail its healthcheck until MAPS_DIR has valid map data in it."
-  fi
+  # Delegates to scripts/prepare-maps.sh: if MAPS_DIR already has valid map
+  # data (from a previous run, or uploaded ahead of time) it returns
+  # immediately; otherwise it prints scp instructions and waits for you to
+  # upload your own bundle from another terminal, or downloads the bundled
+  # Iran map data instead if AUTO_DOWNLOAD_MAPS=1 is set.
+  MAPS_DIR="$MAPS_DIR" scripts/prepare-maps.sh "$MAPS_DIR"
 fi
 
 # --------------------------------------------------------------- images

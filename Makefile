@@ -433,7 +433,7 @@ PROD_COMPOSE = env \
 	$(DOCKER) compose -f docker-compose.prod.yml --env-file .env.prod
 
 .PHONY: prod-build prod-up prod-down prod-logs prod-ps prod-shell mqtt-passwd images \
-        bootstrap ssl up-prebuilt images-bundle load-images
+        bootstrap ssl up-prebuilt images-bundle load-images prepare-maps
 
 images: ## Build both production images without starting anything
 	$(DOCKER) build -t gpstracker-backend:$(or $(VERSION),latest) ./tracking-backend
@@ -494,3 +494,6 @@ images-bundle: ## Build backend+frontend images on this machine and pack them fo
 
 load-images: ## Load an images-bundle tarball built elsewhere (run this ON the server)
 	@bash scripts/load-images.sh $(FILE)
+
+prepare-maps: ## Get map tiles into MAPS_DIR — seeds config/styles/fonts from this repo, waits for you to scp the .mbtiles
+	@bash scripts/prepare-maps.sh $(MAPS_DIR)

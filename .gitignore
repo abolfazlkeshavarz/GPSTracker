@@ -7,9 +7,14 @@ tracking-backend/bin/
 tracking-backend/tmp/
 
 #maps
+# The vector tile data itself is hundreds of MB and regenerable from an OSM
+# extract — never committed. config.json/styles/fonts are the small, stable
+# part (a few MB) and ARE committed: they're the default bundle
+# scripts/prepare-maps.sh seeds MAPS_DIR with, so only the .mbtiles needs to
+# be transferred to a server by hand.
 maps/iran-output.mbtiles
-maps/styles/
-maps/fonts/
+maps/*.mbtiles
+
 # IDE
 .vscode/
 .idea/

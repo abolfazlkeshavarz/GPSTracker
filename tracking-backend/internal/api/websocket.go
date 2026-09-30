@@ -152,24 +152,7 @@ func HandleWebSocket(c *gin.Context) {
 		return
 	}
 
-	// Get user's devices
-	rows, err := db.DB.Query(`
-        SELECT serial FROM devices WHERE user_id=$1`,
-		userID,
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
-		return
-	}
-
-	userDevices := make(map[string]bool)
-	for rows.Next() {
-		var serial string
-		if err := rows.Scan(&serial); err == nil {
-			userDevices[serial] = true
-		}
-	}
-	rows.Close()
+	owns := newOwnershipCache(userID, isAdmin(c))
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -196,7 +179,7 @@ func HandleWebSocket(c *gin.Context) {
 			return true
 		}
 		device, _ := payload["device"].(string)
-		return device != "" && userDevices[device]
+		return device != "" && owns.check(device)
 	}, "device_updates", "user_alerts:"+strconv.Itoa(userID))
 }
 
@@ -205,7 +188,7 @@ func HandleDeviceWebSocket(c *gin.Context) {
 	userID := c.GetInt("user_id")
 
 	// Verify ownership
-	if !deviceBelongsToUser(userID, serial) {
+	if !canAccessDevice(c, serial) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
@@ -224,4 +207,43 @@ func HandleDeviceWebSocket(c *gin.Context) {
 		device, _ := payload["device"].(string)
 		return device == serial
 	}, "device_updates")
+}
+
+// ownershipCache answers "does this user own that device" for the live feed.
+//
+// The set used to be read once when the socket opened, so a device activated
+// (or reassigned) afterwards never streamed until the client reconnected. A
+// short-lived per-connection cache keeps the database out of the hot path —
+// device_updates carries every device on the system — while picking up
+// changes within ownershipTTL.
+type ownershipCache struct {
+	userID int
+	// Admins may open any device's page, so they receive every device.
+	admin   bool
+	entries map[string]ownershipEntry
+}
+
+type ownershipEntry struct {
+	owned   bool
+	checked time.Time
+}
+
+const ownershipTTL = 30 * time.Second
+
+func newOwnershipCache(userID int, admin bool) *ownershipCache {
+	return &ownershipCache{userID: userID, admin: admin, entries: make(map[string]ownershipEntry)}
+}
+
+// check is only called from the connection's own streaming goroutine, so it
+// needs no locking.
+func (o *ownershipCache) check(serial string) bool {
+	if o.admin {
+		return true
+	}
+	if e, ok := o.entries[serial]; ok && time.Since(e.checked) < ownershipTTL {
+		return e.owned
+	}
+	owned := deviceBelongsToUser(o.userID, serial)
+	o.entries[serial] = ownershipEntry{owned: owned, checked: time.Now()}
+	return owned
 }

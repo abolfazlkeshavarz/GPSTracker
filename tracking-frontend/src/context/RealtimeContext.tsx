@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { getToken, isTokenExpired } from "../lib/token";
+import { useAuthStore } from "../store/authStore";
 
 /*
  * A single WebSocket for the whole app.
@@ -95,6 +96,13 @@ const AUTH_CLOSE_CODES = new Set([4001, 4401]);
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ConnectionState>("connecting");
+
+  // The provider sits above the router, so it is mounted on the login page
+  // before any token exists. Following the session token means signing in
+  // opens the socket (and signing out closes it) without a page reload —
+  // previously the first attempt ended as "unauthorized" and live updates
+  // never started until the user refreshed.
+  const sessionToken = useAuthStore((s) => s.token);
   const [lastMessageAt, setLastMessageAt] = useState<number | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -272,7 +280,12 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     aliveRef.current = true;
-    connect();
+    attemptsRef.current = 0;
+    clearTimer();
+    // A new session must not reuse a socket authenticated as the old one.
+    closeSocket();
+    // Signed out: nothing to open. The exposed status reports that below.
+    if (sessionToken) connect();
 
     // A socket suspended by a backgrounded tab often comes back dead without
     // ever firing onclose. Re-check when the tab is shown again.
@@ -305,18 +318,18 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       clearTimer();
       closeSocket();
     };
-  }, [connect]);
+  }, [connect, sessionToken]);
 
   const value = useMemo<RealtimeState>(
     () => ({
-      status,
-      isConnected: status === "open",
+      status: sessionToken ? status : "unauthorized",
+      isConnected: !!sessionToken && status === "open",
       lastMessageAt,
       subscribe,
       subscribeAlerts,
       reconnect,
     }),
-    [status, lastMessageAt, subscribe, subscribeAlerts, reconnect]
+    [sessionToken, status, lastMessageAt, subscribe, subscribeAlerts, reconnect]
   );
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;

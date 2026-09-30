@@ -20,7 +20,7 @@ env:
   FLUTTER_VERSION: "3.35.5"
   # Optional repository variable to bake a different default server into the
   # build. Users can still change it in Settings at any time.
-  DEFAULT_SERVER: ${{ vars.DEFAULT_SERVER || 'https://abolfazl.fun' }}
+  DEFAULT_SERVER: ${{ vars.DEFAULT_SERVER || 'https://gps.abolfazl.fun' }}
 
 defaults:
   run:

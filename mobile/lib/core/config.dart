@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ServerConfig {
   static const defaultServer = String.fromEnvironment(
     'DEFAULT_SERVER',
-    defaultValue: 'https://abolfazl.fun',
+    defaultValue: 'https://gps.abolfazl.fun',
   );
   /// The tileserver-gl container that ships with the backend stack, exposed
   /// by nginx on the platform's own domain. Relative: resolved against the
